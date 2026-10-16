@@ -1,3 +1,4 @@
+import { MAX_TIMER_DELAY_MS } from '../src/timeout.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { it, expect } from 'vitest';
@@ -44,6 +45,20 @@ it.each(['0', '-1', '1.5', 'not-a-number'])(
     ])).rejects.toMatchObject({
       code: 1,
       stderr: expect.stringContaining('Expected a positive integer'),
+    });
+  },
+);
+
+it.each(['--model-timeout-ms', '--tool-timeout-ms', '--run-timeout-ms'])(
+  'rejects timer overflow through %s',
+  async flag => {
+    await expect(runCli([
+      '--fixture', 'fixtures/sample-journal.json',
+      '--question', 'What helped?',
+      flag, String(MAX_TIMER_DELAY_MS + 1),
+    ])).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(`Timeout must be at most ${MAX_TIMER_DELAY_MS}`),
     });
   },
 );

@@ -166,6 +166,14 @@ async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number
       error: 'Could not save trace; check trace directory permissions and disk space',
     };
     trace.termination = outcome.termination;
+    delete trace.finalAnswer;
+    recordEvent(trace, {
+      type: 'error',
+      category: 'trace_write',
+      message: outcome.error,
+    });
+    trace.endedAt = new Date().toISOString();
+    trace.durationMs = Date.now() - startedAt;
   }
   return { ...outcome, trace, tracePath };
 }

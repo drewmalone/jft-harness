@@ -1,3 +1,4 @@
+import { MAX_TIMER_DELAY_MS } from '../src/timeout.js';
 import { it, expect } from 'vitest';
 import { validateLimits } from '../src/limits.js';
 import { validateSearchCall } from '../src/tools/search-entries.js';
@@ -15,3 +16,12 @@ it('rejects duplicate and missing call IDs before tool execution', () => {
   expect(() => validateSearchCall(call, seenIds)).toThrow('duplicate');
   expect(() => validateSearchCall({ ...call, id: '' }, seenIds)).toThrow('Missing');
 });
+
+it.each(['modelTimeoutMs', 'toolTimeoutMs', 'runTimeoutMs'] as const)(
+  'bounds %s to the Node timer range',
+  key => {
+    expect(validateLimits({ [key]: MAX_TIMER_DELAY_MS })[key]).toBe(MAX_TIMER_DELAY_MS);
+    expect(() => validateLimits({ [key]: MAX_TIMER_DELAY_MS + 1 })).toThrow();
+    expect(() => validateLimits({ [key]: Number.MAX_SAFE_INTEGER })).toThrow();
+  },
+);

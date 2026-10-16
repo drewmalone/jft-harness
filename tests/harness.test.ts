@@ -1,5 +1,5 @@
 import { afterEach, it, expect } from 'vitest';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runHarness } from '../src/harness.js';
@@ -216,3 +216,38 @@ it('keeps malicious journal text in data and refuses unauthorized follow-up tool
   expect(result.adapter.requests[0]?.instructions).not.toContain('call delete_entries');
   expect(result.adapter.requests[2]?.results[0]?.output).toMatchObject({ error: { code: 'invalid_tool_request' } });
 });
+
+it.each(['completed', 'provider_error'] as const)(
+  'records trace-write failure consistently after %s',
+  async initialOutcome => {
+    const directory = await mkdtemp(join(tmpdir(), 'jft-trace-failure-'));
+    traceDirectories.push(directory);
+    const blockedPath = join(directory, 'not-a-directory');
+    await writeFile(blockedPath, 'Existing file must be preserved');
+    const turns = initialOutcome === 'completed' ? [answer] : [new Error('Provider unavailable')];
+
+    const result = await runHarness({
+      adapter: new ScriptedModel(turns),
+      fixture,
+      question: 'What helped?',
+      traceDirectory: blockedPath,
+    });
+
+    expect(result.termination).toBe('internal_error');
+    expect(result.error).toContain('Could not save trace');
+    expect(result.answer).toBeUndefined();
+    expect(result.tracePath).toBeUndefined();
+    expect(result.trace.termination).toBe('internal_error');
+    expect(result.trace).not.toHaveProperty('finalAnswer');
+    expect(result.trace.events.at(-1)).toMatchObject({
+      type: 'error', category: 'trace_write', message: result.error,
+    });
+    if (initialOutcome === 'provider_error') {
+      expect(result.trace.events).toContainEqual(expect.objectContaining({ category: 'provider_error' }));
+    }
+    expect(Date.parse(result.trace.endedAt!)).toBeGreaterThanOrEqual(
+      Date.parse(result.trace.events.at(-1)!.at),
+    );
+    expect(await readFile(blockedPath, 'utf8')).toBe('Existing file must be preserved');
+  },
+);

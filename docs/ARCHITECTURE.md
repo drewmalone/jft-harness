@@ -37,11 +37,11 @@ All calls in a response are considered before accepting final text. If calls and
 
 Rejected requests consume budget. On budget exhaustion the loop stops without making another provider request, so unprocessed calls need no continuation outputs. A tool execution exception or timeout records a structured tool failure and terminates rather than continuing a partially processed batch. Termination distinguishes `completed`, `model_limit`, `tool_limit`, `timeout`, `provider_error` and `internal_error`. Empty and incomplete provider responses fail; no misleading successful partial answer is returned.
 
-Per-operation timers race work and pass cancellation signals. Overall remaining time caps each operation. Timers and listeners are cleaned up. SDK retries are zero and there are no harness retries. Cancellation cannot forcibly interrupt synchronous JavaScript; fixture size limits or worker isolation would be needed for untrusted large datasets. Missing configuration and invalid fixtures are preflight errors, outside attempted harness runs.
+Per-operation timers race work and pass cancellation signals. Overall remaining time caps each operation. Configured durations are capped at Node's timer maximum (2,147,483,647 milliseconds), and the timeout helper also rejects overflowing/nonfinite delays before work starts. Timers and listeners are cleaned up. SDK retries are zero and there are no harness retries. Cancellation cannot forcibly interrupt synchronous JavaScript; fixture size limits or worker isolation would be needed for untrusted large datasets. Missing configuration and invalid fixtures are preflight errors, outside attempted harness runs.
 
 ## Tracing and evidence
 
-Every begun run collects timestamped typed events in order, including requests, responses, raw calls, validation, tool results, durations and errors. The final trace adds outcome, answer if available and total duration. It contains prompt version, context, fixture bytes hash and parsed data for reproduction. Persistence is attempted once at termination; if it fails, the CLI fails and reports the disk/permissions issue. Hard process termination cannot guarantee a trace. Failed provider requests record the logical request and error rather than fabricating a response or usage.
+Every begun run collects timestamped typed events in order, including requests, responses, raw calls, validation, tool results, durations and errors. The final trace adds outcome, answer if available and total duration. It contains prompt version, context, fixture bytes hash and parsed data for reproduction. Persistence is attempted once at termination; if it fails, the CLI fails and reports the disk/permissions issue. The returned in-memory trace changes to `internal_error`, removes `finalAnswer`, and appends a `trace_write` event while preserving any earlier provider/tool failure evidence. Hard process termination cannot guarantee a trace. Failed provider requests record the logical request and error rather than fabricating a response or usage.
 
 Journal entries are untrusted strings inside tool result objects. Instructions explicitly separate them from authority. Deterministic tests verify the dispatch boundary even when scripted model output requests an unauthorized tool after seeing malicious content. This proves the allowlist, not model-level injection resistance or factual accuracy. A live model can still misinterpret text, omit contrary evidence or invent citations.
 
@@ -68,3 +68,10 @@ observer rather than the source of model context. Run outcomes distinguish a
 completed answer from a failed run with an error. Tool outputs similarly contain
 either entries or a structured error, never both. Provider-specific raw evidence
 remains opaque.
+
+Provider tests snapshot each SDK request at invocation so later mutations to
+continuation history cannot change earlier expectations. CLI integration tests
+launch the actual CLI process and SDK against a loopback HTTP server implementing
+two scripted Responses turns, then inspect correlated search results and the saved
+trace. A local 429 response also verifies nonzero exit and disabled SDK retries.
+These are protocol checks with synthetic data, not live-model validation.

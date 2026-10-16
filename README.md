@@ -12,7 +12,7 @@ npm ci
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env` or your shell. Never commit it. `tsx` loads `.env` through Node's native environment-file support; existing shell variables take precedence. Tests need neither credentials nor network access.
+Set `OPENAI_API_KEY` in `.env` or your shell. Never commit it. `tsx` loads `.env` through Node's native environment-file support; existing shell variables take precedence. Tests need no real credentials or internet access. CLI integration tests bind an ephemeral loopback port.
 
 `OPENAI_MODEL` defaults to `gpt-5.4-mini`, a small GPT-5 model listed in the installed SDK, chosen for a cost-conscious tool-calling default rather than the largest model. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default lives in `src/config.ts`, outside orchestration logic.
 
@@ -43,9 +43,9 @@ Defaults and CLI overrides:
 | `--tool-timeout-ms` | 5000 |
 | `--run-timeout-ms` | 120000 |
 
-Model and tool waits are capped by the remaining overall deadline. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
+Model and tool waits are capped by the remaining overall deadline. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Timeout settings must not exceed Node's maximum timer delay of 2,147,483,647 milliseconds; oversized values are rejected rather than overflowing into short waits. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
 
-Unsuccessful runs exit nonzero and never print a partial answer as success. Missing CLI configuration and malformed fixtures fail before harness execution. Once a harness run begins, success and failure both attempt trace persistence. A failed trace write is itself an unsuccessful run.
+Unsuccessful runs exit nonzero and never print a partial answer as success. Missing CLI configuration and malformed fixtures fail before harness execution. Once a harness run begins, success and failure both attempt trace persistence. A failed trace write is itself an unsuccessful run. The returned in-memory trace records a `trace_write` error and clears the final-answer field; no saved path is reported.
 
 ## Inspecting traces
 
@@ -63,7 +63,7 @@ Traces include fixture path, SHA-256 of the original file bytes, complete fictio
 
 GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull requests and pushes to `main` (`.github/workflows/checks.yml`). It needs no API key. Dependency Review checks PR dependency changes and blocks high/critical known vulnerabilities. CodeQL scans JavaScript/TypeScript on PRs, pushes to `main`, and every Monday. These workflows use GitHub-provided authentication, not an OpenAI API key.
 
-`npm test` uses scripted model adapters and a mocked SDK. It exercises orchestration, tool dispatch, fixture validation, deadlines, provider continuation mapping, tracing and CLI failures without live calls. Tests prove that journal strings are never executed and cannot add privileged tools. They cannot prove a live model will always resist injection, cite accurately, retrieve all relevant entries, or handle contradictions correctly. Citations and answer grounding are instructed, not mechanically verified. No live OpenAI request was verified during implementation because no API key was available.
+`npm test` uses scripted model adapters, SDK request snapshots, and the actual SDK against a local fake Responses endpoint. The CLI integration tests exercise search continuation, final output, saved traces, and a 429 failure with no automatic retry. The fake endpoint uses the SDK's existing `OPENAI_BASE_URL` environment setting and a synthetic key; these tests do not call OpenAI. It exercises orchestration, tool dispatch, fixture validation, deadlines, provider continuation mapping, tracing and CLI failures without live OpenAI calls. Tests prove that journal strings are never executed and cannot add privileged tools. They cannot prove a live model will always resist injection, cite accurately, retrieve all relevant entries, or handle contradictions correctly. Citations and answer grounding are instructed, not mechanically verified. No live OpenAI request was verified during implementation because no API key was available.
 
 This is a learning prototype, not clinical advice or a replacement for human recovery support. See [the architecture](docs/ARCHITECTURE.md) for the loop and design tradeoffs.
 

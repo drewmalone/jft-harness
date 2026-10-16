@@ -1,6 +1,7 @@
 import { Command, InvalidArgumentError } from 'commander';
 import { DEFAULT_MODEL } from './config.js';
 import { DEFAULT_LIMITS } from './limits.js';
+import { MAX_TIMER_DELAY_MS } from './timeout.js';
 
 function positiveInteger(value: string): number {
   const number = Number(value);
@@ -8,6 +9,14 @@ function positiveInteger(value: string): number {
     throw new InvalidArgumentError('Expected a positive integer');
   }
   return number;
+}
+
+function timeoutDuration(value: string): number {
+  const duration = positiveInteger(value);
+  if (duration > MAX_TIMER_DELAY_MS) {
+    throw new InvalidArgumentError(`Timeout must be at most ${MAX_TIMER_DELAY_MS} milliseconds`);
+  }
+  return duration;
 }
 
 /**
@@ -25,9 +34,9 @@ export function parseCliOptions() {
     .option('--trace-dir <directory>', 'Trace output directory', 'traces')
     .option('--max-model-requests <number>', 'Model request budget', positiveInteger, DEFAULT_LIMITS.modelRequests)
     .option('--max-tool-calls <number>', 'Tool call budget, including rejected calls', positiveInteger, DEFAULT_LIMITS.toolCalls)
-    .option('--model-timeout-ms <number>', 'Per-request timeout', positiveInteger, DEFAULT_LIMITS.modelTimeoutMs)
-    .option('--tool-timeout-ms <number>', 'Per-tool timeout', positiveInteger, DEFAULT_LIMITS.toolTimeoutMs)
-    .option('--run-timeout-ms <number>', 'Overall deadline', positiveInteger, DEFAULT_LIMITS.runTimeoutMs)
+    .option('--model-timeout-ms <number>', 'Per-request timeout', timeoutDuration, DEFAULT_LIMITS.modelTimeoutMs)
+    .option('--tool-timeout-ms <number>', 'Per-tool timeout', timeoutDuration, DEFAULT_LIMITS.toolTimeoutMs)
+    .option('--run-timeout-ms <number>', 'Overall deadline', timeoutDuration, DEFAULT_LIMITS.runTimeoutMs)
     .showHelpAfterError()
     .addHelpText('after', '\nExample: npm run jft -- --fixture fixtures/sample-journal.json --question "What helped Nelson?"\nEnvironment: OPENAI_API_KEY (required), OPENAI_MODEL (optional)');
 

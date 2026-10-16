@@ -1,3 +1,6 @@
+/** Largest delay Node timers accept without overflowing to a short wait. */
+export const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
 /** Signals a deadline or parent cancellation, both reported as timeout outcomes. */
 export class DeadlineError extends Error {}
 
@@ -29,16 +32,23 @@ export class DeadlineError extends Error {}
  * ```
  *
  * @param work - Operation receiving a signal scoped to this invocation.
- * @param timeoutMs - Allowed wait in milliseconds, capped by the caller's deadline.
+ * @param timeoutMs - Allowed wait in milliseconds, capped by the caller's deadline
+ * and Node's maximum timer delay. Nonpositive values expire immediately.
  * @param parentSignal - Optional run cancellation signal.
  * @throws {@link DeadlineError} on timeout or parent cancellation; otherwise
  * propagates the operation's error unchanged.
+ * @throws RangeError before starting work if the delay is not finite or exceeds
+ * Node's maximum timer delay.
  */
 export async function withTimeout<T>(
   work: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
   parentSignal?: AbortSignal,
 ): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs > MAX_TIMER_DELAY_MS) {
+    throw new RangeError(`timeoutMs must be finite and at most ${MAX_TIMER_DELAY_MS}`);
+  }
+
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let cancel: (() => void) | undefined;

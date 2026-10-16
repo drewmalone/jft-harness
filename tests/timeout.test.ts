@@ -1,5 +1,5 @@
 import { afterEach, it, expect, vi } from 'vitest';
-import { DeadlineError, withTimeout } from '../src/timeout.js';
+import { DeadlineError, MAX_TIMER_DELAY_MS, withTimeout } from '../src/timeout.js';
 
 afterEach(() => vi.useRealTimers());
 
@@ -40,3 +40,28 @@ it('cleans up the deadline after successful work', async () => {
   await expect(withTimeout(async () => 'done', 100)).resolves.toBe('done');
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('does not overflow the maximum supported delay into an immediate timeout', async () => {
+  vi.useFakeTimers();
+  let finish: (value: string) => void = () => {};
+  let operationSignal: AbortSignal | undefined;
+  const operation = withTimeout(signal => {
+    operationSignal = signal;
+    return new Promise<string>(resolve => { finish = resolve; });
+  }, MAX_TIMER_DELAY_MS);
+
+  await vi.advanceTimersByTimeAsync(1);
+  expect(operationSignal?.aborted).toBe(false);
+  finish('done');
+  await expect(operation).resolves.toBe('done');
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each([MAX_TIMER_DELAY_MS + 1, Infinity, NaN])(
+  'rejects unsupported delay %s before starting work',
+  async delay => {
+    const work = vi.fn(async () => 'done');
+    await expect(withTimeout(work, delay)).rejects.toBeInstanceOf(RangeError);
+    expect(work).not.toHaveBeenCalled();
+  },
+);
