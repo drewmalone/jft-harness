@@ -2,7 +2,7 @@
 
 JFT keeps the harness explicit so two engineers can follow each decision. `cli.ts` parses arguments, validates configuration, loads the fixture, supplies cancellation, and prints either a final answer or a failed-run message. `entries.ts` validates calendar dates, unique IDs and text with Zod and hashes the original file. `context.ts` holds the versioned instructions and a small date-range context; journal content enters model context only through tool results. The latest fixture date anchors relative-date questions, making historical fixture runs reproducible.
 
-`harness.ts` owns orchestration and a logical user/assistant/tool transcript. Its narrow `ModelAdapter` interface permits a scripted fake for tests; it is not a universal provider framework. `provider.ts` owns the official OpenAI SDK and maps output function calls to `{id, name, arguments}` while retaining provider-specific output items. `tools/search-entries.ts` owns search arguments, the generated JSON Schema and deterministic search. `trace.ts` handles trace construction and file persistence without driving execution.
+`timeout.ts` isolates deadline and cancellation handling. `harness.ts` owns orchestration and a logical user/assistant/tool transcript. Its narrow `ModelAdapter` interface permits a scripted fake for tests; it is not a universal provider framework. `provider.ts` owns the official OpenAI SDK and maps output function calls to `{id, name, arguments}` while retaining provider-specific output items. `tools/search-entries.ts` owns search arguments, the generated JSON Schema and deterministic search. `trace.ts` handles trace construction and file persistence without driving execution.
 
 ## One tool interaction
 

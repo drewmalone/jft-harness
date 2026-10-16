@@ -1,5 +1,7 @@
 import type { Entry } from './entries.js';
+
 export const PROMPT_VERSION = 'jft-v0.1-1';
+
 export function buildContext(entries: Entry[]) {
   return `You answer questions about Alex's fictional recovery journal. Use search_entries to obtain evidence; no journal text is included initially.
 Cite stable entry IDs in square brackets for every journal claim. Acknowledge insufficient evidence. Address contradictions and describe patterns tentatively. Do not diagnose or claim to replace sponsors, therapists, clinicians, or human recovery support.

@@ -10,15 +10,28 @@ export const entrySchema = z.object({
   }, 'Invalid calendar date'),
   text: z.string().trim().min(1),
 }).strict();
-export const fixtureSchema = z.array(entrySchema).min(1).superRefine((entries, ctx) => {
+
+export const fixtureSchema = z.array(entrySchema).min(1).superRefine((entries, context) => {
   const ids = new Set<string>();
   entries.forEach((entry, index) => {
-    if (ids.has(entry.id)) ctx.addIssue({ code: 'custom', path: [index, 'id'], message: 'Duplicate entry ID' });
+    if (ids.has(entry.id)) {
+      context.addIssue({
+        code: 'custom',
+        path: [index, 'id'],
+        message: 'Duplicate entry ID'
+      });
+    }
     ids.add(entry.id);
   });
 });
+
 export type Entry = z.infer<typeof entrySchema>;
+
 export async function loadFixture(path: string) {
   const content = await readFile(path, 'utf8');
-  return { path, hash: createHash('sha256').update(content).digest('hex'), entries: fixtureSchema.parse(JSON.parse(content)) };
+  return {
+    path,
+    hash: createHash('sha256').update(content).digest('hex'),
+    entries: fixtureSchema.parse(JSON.parse(content))
+  };
 }
