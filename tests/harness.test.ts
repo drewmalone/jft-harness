@@ -91,7 +91,7 @@ it('answers directly and saves reproducible successful trace', async () => {
     question: 'What helped?',
     fixture,
     finalAnswer: answer.text,
-    promptVersion: 'jft-v0.1-1'
+    promptVersion: 'jft-v0.1-2'
   });
   expect(result.saved.events.map((e: {
     type: string;

@@ -32,3 +32,12 @@ it('defaults and bounds limit consistently', () => {
     limit: 1
   })).toHaveLength(1);
 });
+
+it('segments punctuation and Unicode words without regular expressions', () => {
+  const journal = [
+    { id: 'one', date: '2026-09-01', text: 'CAFÉ, sponsor! Anxiety.' },
+    { id: 'two', date: '2026-09-02', text: 'Walking home.' },
+  ];
+  const results = searchEntries(journal, { query: 'café sponsor', limit: 5 });
+  expect(results.map(entry => entry.id)).toEqual(['one']);
+});

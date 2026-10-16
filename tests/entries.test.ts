@@ -4,32 +4,43 @@ import { fixtureSchema, loadFixture } from '../src/entries.js';
 const entry = {
   id: 'entry-001',
   date: '2026-09-01',
-  text: 'Fictional text'
+  text: 'Fictional text',
 };
+
+const malformedFixtures = [
+  null,
+  [],
+  [{ ...entry, text: '' }],
+  [{ ...entry, date: '2026-02-30' }],
+  [{ ...entry, date: '2025-02-29' }],
+  [{ ...entry, date: '2026-9-01' }],
+  [{ ...entry, date: '2026-09-01T00:00:00Z' }],
+  [{ ...entry, date: '2026-0a-01' }],
+  [{ ...entry, id: '../bad' }],
+  [{ ...entry, id: '-bad' }],
+  [{ ...entry, id: '' }],
+];
+
 describe('fixtures', () => {
   it('loads the fictional dataset and hashes original content', async () => {
     const fixture = await loadFixture('fixtures/sample-journal.json');
     expect(fixture.entries).toHaveLength(18);
-    expect(fixture.hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(fixture.hash).toHaveLength(64);
+    const hasOnlyHexDigits = [...fixture.hash].every(character =>
+      '0123456789abcdef'.includes(character));
+    expect(hasOnlyHexDigits).toBe(true);
   });
-  it.each([null, [], [{
-        ...entry,
-        text: ''
-      }], [{
-        ...entry,
-        date: '2026-02-30'
-      }], [{
-        ...entry,
-        date: '2025-02-29'
-      }], [{
-        ...entry,
-        id: '../bad'
-      }]])('rejects malformed fixture %j', value => {
+
+  it.each(malformedFixtures)('rejects malformed fixture %j', value => {
     expect(fixtureSchema.safeParse(value).success).toBe(false);
   });
-  it('rejects duplicate IDs', () => expect(fixtureSchema.safeParse([entry, entry]).success).toBe(false));
-  it('accepts leap day', () => expect(fixtureSchema.safeParse([{
-      ...entry,
-      date: '2024-02-29'
-    }]).success).toBe(true));
+
+  it('rejects duplicate IDs', () => {
+    expect(fixtureSchema.safeParse([entry, entry]).success).toBe(false);
+  });
+
+  it('accepts leap day', () => {
+    const fixture = [{ ...entry, date: '2024-02-29' }];
+    expect(fixtureSchema.safeParse(fixture).success).toBe(true);
+  });
 });

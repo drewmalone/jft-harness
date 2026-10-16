@@ -38,6 +38,7 @@ export class OpenAIAdapter implements ModelAdapter {
       input: this.history,
       tools: [searchTool],
       store: false,
+      include: ['reasoning.encrypted_content'],
     }, { signal });
 
     for (const item of response.output) {

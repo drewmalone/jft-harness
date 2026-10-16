@@ -4,28 +4,46 @@ import { it, expect } from 'vitest';
 
 const exec = promisify(execFile);
 
+function runCli(args: string[]) {
+  return exec(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], {
+    env: { ...process.env, OPENAI_API_KEY: '' },
+  });
+}
+
 it('prints help without credentials', async () => {
-  const result = await exec(process.execPath, ['--import', 'tsx', 'src/cli.ts', '--help'], { env: {
-      ...process.env,
-      OPENAI_API_KEY: ''
-    } });
+  const result = await runCli(['--help']);
   expect(result.stdout).toContain('--fixture');
   expect(result.stdout).toContain('--max-tool-calls');
+  expect(result.stdout).toContain('gpt-5.4-mini');
 });
 
 it('missing arguments produce nonzero exit and usage', async () => {
-  await expect(exec(process.execPath, ['--import', 'tsx', 'src/cli.ts'])).rejects.toMatchObject({
+  await expect(runCli([])).rejects.toMatchObject({
     code: 1,
-    stderr: expect.stringContaining('--fixture and --question are required')
+    stderr: expect.stringContaining("required option '--fixture <path>' not specified"),
   });
 });
 
 it('missing key fails before live execution', async () => {
-  await expect(exec(process.execPath, ['--import', 'tsx', 'src/cli.ts', '--fixture', 'fixtures/sample-journal.json', '--question', 'What helped?'], { env: {
-      ...process.env,
-      OPENAI_API_KEY: ''
-    } })).rejects.toMatchObject({
+  await expect(runCli([
+    '--fixture', 'fixtures/sample-journal.json',
+    '--question', 'What helped?',
+  ])).rejects.toMatchObject({
     code: 1,
-    stderr: expect.stringContaining('Set OPENAI_API_KEY')
+    stderr: expect.stringContaining('Set OPENAI_API_KEY'),
   });
 });
+
+it.each(['0', '-1', '1.5', 'not-a-number'])(
+  'rejects invalid execution budget %s before live execution',
+  async value => {
+    await expect(runCli([
+      '--fixture', 'fixtures/sample-journal.json',
+      '--question', 'What helped?',
+      '--max-tool-calls', value,
+    ])).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('Expected a positive integer'),
+    });
+  },
+);

@@ -17,9 +17,14 @@ export const searchTool = {
   parameters: z.toJSONSchema(searchArguments, { target: 'draft-7', io: 'input' }),
 };
 
+const wordSegmenter = new Intl.Segmenter('en', { granularity: 'word' });
+
 function tokenize(text: string): Set<string> {
-  const tokens = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-  return new Set(tokens);
+  const segments = wordSegmenter.segment(text.toLowerCase());
+  const words = [...segments]
+    .filter(segment => segment.isWordLike)
+    .map(segment => segment.segment);
+  return new Set(words);
 }
 
 export function searchEntries(entries: readonly Entry[], args: SearchArguments): Entry[] {

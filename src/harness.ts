@@ -1,258 +1,137 @@
 import { buildContext, PROMPT_VERSION } from './context.js';
 import type { Entry } from './entries.js';
-import { searchArguments, searchEntries, type SearchArguments } from './tools/search-entries.js';
+import { validateLimits, type Limits } from './limits.js';
+import { executeToolCall } from './tool-execution.js';
+import type { SearchArguments } from './tools/search-entries.js';
 import { createTrace, recordEvent, saveTrace, type Trace } from './trace.js';
-import type { ModelAdapter, Termination, ToolCall, ToolResult } from './types.js';
+import type { ModelAdapter, Termination, ToolCall, ToolResult, Turn } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
+import { validateModelResponse } from './validation.js';
 
-export const DEFAULT_LIMITS = {
-  modelRequests: 5,
-  toolCalls: 6,
-  modelTimeoutMs: 30_000,
-  toolTimeoutMs: 5_000,
-  runTimeoutMs: 120_000,
-};
-
-export type Limits = typeof DEFAULT_LIMITS;
+export { DEFAULT_LIMITS, type Limits } from './limits.js';
 
 export type HarnessOptions = {
   adapter: ModelAdapter;
   question: string;
-  fixture: {
-    path: string;
-    hash: string;
-    entries: Entry[];
-  };
+  fixture: { path: string; hash: string; entries: Entry[] };
   limits?: Partial<Limits>;
   traceDirectory?: string;
   signal?: AbortSignal;
-  // Tests can simulate search failures without bypassing dispatch or validation.
+  // Tests simulate search failures without bypassing dispatch or validation.
   search?: (args: SearchArguments, signal: AbortSignal) => Promise<Entry[]>;
 };
+
+type RunOutcome = {
+  termination: Termination;
+  answer?: string;
+  error?: string;
+};
+
+type RunContext = {
+  options: HarnessOptions;
+  limits: Limits;
+  trace: Trace;
+  remainingTime: () => number;
+  toolCallsUsed: number;
+};
+
+class ProviderError extends Error {}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function validateToolCall(call: ToolCall, seenIds: Set<string>): SearchArguments {
-  if (!call.id || seenIds.has(call.id)) {
-    throw new Error('Missing or duplicate tool call identifier');
-  }
-  seenIds.add(call.id);
-  if (call.name !== 'search_entries') {
-    throw new Error(`Unknown tool: ${call.name}`);
-  }
-  return searchArguments.parse(JSON.parse(call.arguments));
-}
-
-function recordToolResult(
-  trace: Trace,
-  callId: string,
-  output: unknown,
-  executed: boolean,
-  startedAt: number,
-): ToolResult {
-  recordEvent(trace, {
-    type: 'tool_result',
-    callId,
-    output,
-    executed,
-    durationMs: Date.now() - startedAt,
-  });
-  trace.transcript.push({
-    role: 'tool',
-    callId,
-    output
-  });
-  return {
-    callId,
-    output
-  };
-}
-
-async function executeToolCall(
-  call: ToolCall,
-  seenIds: Set<string>,
-  options: HarnessOptions,
-  trace: Trace,
-  timeoutMs: number,
-): Promise<ToolResult> {
-  const startedAt = Date.now();
-  let args: SearchArguments;
+async function requestModel(run: RunContext, number: number, results: ToolResult[]): Promise<Turn> {
+  const { options, limits, trace } = run;
+  const input = { instructions: trace.context, question: options.question, results };
+  recordEvent(trace, { type: 'model_request', number, input });
 
   try {
-    args = validateToolCall(call, seenIds);
-    recordEvent(trace, {
-      type: 'tool_validation',
-      callId: call.id,
-      valid: true,
-      input: args,
-    });
-  } catch (error) {
-    const detail = errorMessage(error);
-    recordEvent(trace, {
-      type: 'tool_validation',
-      callId: call.id,
-      valid: false,
-      error: detail,
-    });
-    const output = {
-      error: {
-        code: 'invalid_tool_request',
-        message: detail
-      },
-    };
-    return recordToolResult(trace, call.id, output, false, startedAt);
-  }
-
-  try {
-    const entries = await withTimeout(
-      async signal => {
-        if (options.search) {
-          return options.search(args, signal);
-        }
-        return searchEntries(options.fixture.entries, args);
-      },
-      timeoutMs,
+    const response = await withTimeout(
+      signal => options.adapter.request(input, signal),
+      Math.min(limits.modelTimeoutMs, run.remainingTime()),
       options.signal,
     );
-    return recordToolResult(trace, call.id, { entries }, true, startedAt);
+    recordEvent(trace, { type: 'model_response', number, response });
+    trace.transcript.push({ role: 'assistant', text: response.text, calls: response.calls });
+    validateModelResponse(response);
+    return response;
   } catch (error) {
-    const code = error instanceof DeadlineError ? 'timeout' : 'tool_error';
-    const output = {
-      error: { code, message: errorMessage(error) },
-    };
-    recordToolResult(trace, call.id, output, true, startedAt);
-    throw error;
+    if (error instanceof DeadlineError) {
+      throw error;
+    }
+    throw new ProviderError(errorMessage(error));
   }
 }
 
-export async function runHarness(options: HarnessOptions) {
-  const limits = {
-    ...DEFAULT_LIMITS,
-    ...options.limits
-  };
-  for (const [name, value] of Object.entries(limits)) {
-    if (!Number.isSafeInteger(value) || value < 1) {
-      throw new Error(`Invalid limit: ${name}`);
+async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
+  const results: ToolResult[] = [];
+  const seenIds = new Set<string>();
+
+  // Preserve response order. Rejected requests consume budget too.
+  for (const call of calls) {
+    recordEvent(run.trace, { type: 'tool_request', call });
+    if (run.toolCallsUsed >= run.limits.toolCalls) {
+      return { results, limitReached: true };
     }
+    run.toolCallsUsed++;
+
+    const result = await executeToolCall(
+      call,
+      seenIds,
+      run.options,
+      run.trace,
+      Math.min(run.limits.toolTimeoutMs, run.remainingTime()),
+    );
+    results.push(result);
   }
+  return { results, limitReached: false };
+}
 
-  const context = buildContext(options.fixture.entries);
-  const trace = createTrace({
-    provider: options.adapter.provider,
-    model: options.adapter.model,
-    promptVersion: PROMPT_VERSION,
-    fixture: options.fixture,
-    question: options.question,
-    context,
-    limits,
-  });
-  const startedAt = Date.now();
-  const remainingTime = () => limits.runTimeoutMs - (Date.now() - startedAt);
-
-  let termination: Termination = 'internal_error';
-  let failureMessage: string | undefined;
-  let toolCallsUsed = 0;
+async function executeLoop(run: RunContext): Promise<RunOutcome> {
   let pendingResults: ToolResult[] = [];
-  let stage: 'model' | 'tool' = 'model';
 
-  try {
-    modelLoop: for (let requestNumber = 1; requestNumber <= limits.modelRequests; requestNumber++) {
-      if (remainingTime() <= 0 || options.signal?.aborted) {
-        throw new DeadlineError('Overall deadline reached or run cancelled');
-      }
-
-      stage = 'model';
-      const input = {
-        instructions: context,
-        question: options.question,
-        results: pendingResults,
-      };
-      recordEvent(trace, {
-        type: 'model_request',
-        number: requestNumber,
-        input
-      });
-      const response = await withTimeout(
-        signal => options.adapter.request(input, signal),
-        Math.min(limits.modelTimeoutMs, remainingTime()),
-        options.signal,
-      );
-      recordEvent(trace, {
-        type: 'model_response',
-        number: requestNumber,
-        response,
-      });
-      trace.transcript.push({
-        role: 'assistant',
-        text: response.text,
-        calls: response.calls,
-      });
-
-      if (response.status && response.status !== 'completed') {
-        throw new Error(`Provider response status: ${response.status}`);
-      }
-
-      if (response.calls.length === 0) {
-        if (!response.text.trim()) {
-          throw new Error('Model returned neither an answer nor tool calls');
-        }
-        termination = 'completed';
-        failureMessage = undefined;
-        trace.finalAnswer = response.text;
-        break;
-      }
-
-      stage = 'tool';
-      pendingResults = [];
-      const seenIds = new Set<string>();
-
-      // Preserve response order. Rejected requests consume budget too.
-      for (const call of response.calls) {
-        recordEvent(trace, {
-          type: 'tool_request',
-          call
-        });
-        if (toolCallsUsed >= limits.toolCalls) {
-          termination = 'tool_limit';
-          failureMessage = 'Tool call limit reached';
-          break modelLoop;
-        }
-        toolCallsUsed++;
-        const result = await executeToolCall(
-          call,
-          seenIds,
-          options,
-          trace,
-          Math.min(limits.toolTimeoutMs, remainingTime()),
-        );
-        pendingResults.push(result);
-      }
-
-      termination = 'model_limit';
-      failureMessage = 'Model request limit reached';
+  for (let number = 1; number <= run.limits.modelRequests; number++) {
+    if (run.remainingTime() <= 0 || run.options.signal?.aborted) {
+      throw new DeadlineError('Overall deadline reached or run cancelled');
     }
-  } catch (error) {
-    if (error instanceof DeadlineError) {
-      termination = 'timeout';
-    } else if (stage === 'model') {
-      termination = 'provider_error';
-    } else {
-      termination = 'internal_error';
+
+    const response = await requestModel(run, number, pendingResults);
+    if (response.calls.length === 0) {
+      return { termination: 'completed', answer: response.text };
     }
-    failureMessage = errorMessage(error);
+
+    const batch = await executeToolBatch(run, response.calls);
+    if (batch.limitReached) {
+      return { termination: 'tool_limit', error: 'Tool call limit reached' };
+    }
+    pendingResults = batch.results;
   }
 
-  if (termination !== 'completed') {
+  return { termination: 'model_limit', error: 'Model request limit reached' };
+}
+
+function failedOutcome(error: unknown): RunOutcome {
+  let termination: Termination = 'internal_error';
+  if (error instanceof DeadlineError) {
+    termination = 'timeout';
+  } else if (error instanceof ProviderError) {
+    termination = 'provider_error';
+  }
+  return { termination, error: errorMessage(error) };
+}
+
+async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number) {
+  const { trace, options } = run;
+  if (outcome.termination !== 'completed') {
     recordEvent(trace, {
       type: 'error',
-      category: termination,
-      message: failureMessage ?? termination,
+      category: outcome.termination,
+      message: outcome.error ?? outcome.termination,
     });
   }
-
-  trace.termination = termination;
+  trace.termination = outcome.termination;
+  trace.finalAnswer = outcome.answer;
   trace.endedAt = new Date().toISOString();
   trace.durationMs = Date.now() - startedAt;
 
@@ -260,16 +139,40 @@ export async function runHarness(options: HarnessOptions) {
   try {
     tracePath = await saveTrace(trace, options.traceDirectory);
   } catch {
-    failureMessage = 'Could not save trace; check trace directory permissions and disk space';
-    termination = 'internal_error';
-    trace.termination = termination;
+    outcome = {
+      termination: 'internal_error',
+      error: 'Could not save trace; check trace directory permissions and disk space',
+    };
+    trace.termination = outcome.termination;
   }
+  return { ...outcome, trace, tracePath };
+}
 
-  return {
-    termination,
-    answer: termination === 'completed' ? trace.finalAnswer : undefined,
-    error: failureMessage,
+export async function runHarness(options: HarnessOptions) {
+  const limits = validateLimits(options.limits);
+  const trace = createTrace({
+    provider: options.adapter.provider,
+    model: options.adapter.model,
+    promptVersion: PROMPT_VERSION,
+    fixture: options.fixture,
+    question: options.question,
+    context: buildContext(options.fixture.entries),
+    limits,
+  });
+  const startedAt = Date.now();
+  const run: RunContext = {
+    options,
+    limits,
     trace,
-    tracePath,
+    remainingTime: () => limits.runTimeoutMs - (Date.now() - startedAt),
+    toolCallsUsed: 0,
   };
+
+  let outcome: RunOutcome;
+  try {
+    outcome = await executeLoop(run);
+  } catch (error) {
+    outcome = failedOutcome(error);
+  }
+  return finishRun(run, outcome, startedAt);
 }

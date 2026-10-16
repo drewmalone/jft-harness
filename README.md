@@ -14,10 +14,10 @@ cp .env.example .env
 
 Set `OPENAI_API_KEY` in `.env` or your shell. Never commit it. `tsx` loads `.env` through Node's native environment-file support; existing shell variables take precedence. Tests need neither credentials nor network access.
 
-`OPENAI_MODEL` defaults to `gpt-4.1-mini`, a Responses API model supporting function tools. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default is configuration in the CLI, not orchestration logic.
+`OPENAI_MODEL` defaults to `gpt-5.4-mini`, a small GPT-5 model listed in the installed SDK, chosen for a cost-conscious tool-calling default rather than the largest model. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default lives in `src/config.ts`, outside orchestration logic.
 
 ```bash
-npm run jft -- --fixture ./fixtures/sample-journal.json --question "What helped Alex when he was anxious?"
+npm run jft -- --fixture ./fixtures/sample-journal.json --question "What helped Nelson when he was anxious?"
 npm run jft -- --help
 npm test
 npm run typecheck
@@ -29,7 +29,7 @@ The fixture contains 18 invented entries over five weeks, including contradictor
 
 ## Execution and limits
 
-The model can answer directly or ask the single read-only `search_entries` tool for evidence. Search matches distinct case-insensitive whole-word tokens, ranks by number of overlapping tokens, then breaks ties by original fixture order. Results contain IDs, dates and original text. Limit defaults to 5, maximum 10. There is no stemming, synonym expansion, semantic understanding or date-filter argument. Use short keywords; a query such as "walk" will not match "walking".
+The model can answer directly or ask the single read-only `search_entries` tool for evidence. Search uses Node's `Intl.Segmenter` with English word boundaries (no regular expressions) and matches distinct case-insensitive word tokens, ranks by number of overlapping tokens, then breaks ties by original fixture order. Results contain IDs, dates and original text. Limit defaults to 5, maximum 10. There is no stemming, synonym expansion, semantic understanding or date-filter argument. Use short keywords; a query such as "walk" will not match "walking".
 
 The harness validates an explicit tool allowlist and all JSON arguments before execution. Calls in a batch execute sequentially in provider output order. Invalid requests receive structured error outputs and count toward the budget. Tool execution failures end the run; they are not retried. Provider/SDK retries are disabled.
 
@@ -60,6 +60,8 @@ Traces include fixture path, SHA-256 of the original file bytes, complete fictio
 **These traces contain journal text and questions. Real journals require stricter access controls, redaction, retention/deletion rules, and review of provider data policies before product use.** `store: false` is sent to OpenAI, but it is not a complete privacy policy.
 
 ## Validation and limitations
+
+GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull requests and pushes to `main` (`.github/workflows/checks.yml`). It needs no API key.
 
 `npm test` uses scripted model adapters and a mocked SDK. It exercises orchestration, tool dispatch, fixture validation, deadlines, provider continuation mapping, tracing and CLI failures without live calls. Tests prove that journal strings are never executed and cannot add privileged tools. They cannot prove a live model will always resist injection, cite accurately, retrieve all relevant entries, or handle contradictions correctly. Citations and answer grounding are instructed, not mechanically verified. No live OpenAI request was verified during implementation because no API key was available.
 

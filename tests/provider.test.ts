@@ -69,6 +69,7 @@ it('replays reasoning, messages and function calls with exact call IDs and disab
   expect(request).toMatchObject({
     model: 'test-model',
     store: false,
+    include: ['reasoning.encrypted_content'],
     instructions: 'context'
   });
   expect(request.input.slice(0, 4)).toEqual([{
