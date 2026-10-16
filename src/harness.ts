@@ -1,12 +1,10 @@
 import { buildContext, PROMPT_VERSION } from './context.js';
 import type { Entry } from './entries.js';
 import { validateLimits, type Limits } from './limits.js';
-import { executeToolCall } from './tool-execution.js';
-import type { SearchArguments } from './tools/search-entries.js';
+import { executeToolCall, type SearchExecutor } from './tool-execution.js';
 import { createTrace, recordEvent, saveTrace, type Trace } from './trace.js';
-import type { ModelAdapter, Termination, ToolCall, ToolResult, Turn } from './types.js';
+import type { FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
-import { validateModelResponse } from './validation.js';
 
 export { DEFAULT_LIMITS, type Limits } from './limits.js';
 
@@ -25,18 +23,13 @@ export type HarnessOptions = {
   traceDirectory?: string;
   signal?: AbortSignal;
   // Tests simulate search failures without bypassing dispatch or validation.
-  search?: (args: SearchArguments, signal: AbortSignal) => Promise<Entry[]>;
-};
-
-type RunOutcome = {
-  termination: Termination;
-  answer?: string;
-  error?: string;
+  search?: SearchExecutor;
 };
 
 type RunContext = {
   options: HarnessOptions;
   limits: Limits;
+  instructions: string;
   trace: Trace;
   remainingTime: () => number;
   toolCallsUsed: number;
@@ -48,10 +41,24 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Rejects incomplete provider turns and turns with neither tools nor an answer.
+ * Text alongside tool calls is permitted but is not a final answer.
+ * @throws If the turn cannot advance the harness safely.
+ */
+function validateModelResponse(response: Turn): void {
+  if (response.status && response.status !== 'completed') {
+    throw new Error(`Provider response status: ${response.status}`);
+  }
+  if (response.calls.length === 0 && !response.text.trim()) {
+    throw new Error('Model returned neither an answer nor tool calls');
+  }
+}
+
 /** Records one provider interaction and classifies provider/response failures. */
 async function requestModel(run: RunContext, number: number, results: ToolResult[]): Promise<Turn> {
   const { options, limits, trace } = run;
-  const input = { instructions: trace.context, question: options.question, results };
+  const input = { instructions: run.instructions, question: options.question, results };
   recordEvent(trace, { type: 'model_request', number, input });
 
   try {
@@ -88,7 +95,11 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
     const result = await executeToolCall(
       call,
       seenIds,
-      run.options,
+      {
+        entries: run.options.fixture.entries,
+        search: run.options.search,
+        signal: run.options.signal,
+      },
       run.trace,
       Math.min(run.limits.toolTimeoutMs, run.remainingTime()),
     );
@@ -122,7 +133,7 @@ async function executeLoop(run: RunContext): Promise<RunOutcome> {
 }
 
 function failedOutcome(error: unknown): RunOutcome {
-  let termination: Termination = 'internal_error';
+  let termination: FailureReason = 'internal_error';
   if (error instanceof DeadlineError) {
     termination = 'timeout';
   } else if (error instanceof ProviderError) {
@@ -138,7 +149,7 @@ async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number
     recordEvent(trace, {
       type: 'error',
       category: outcome.termination,
-      message: outcome.error ?? outcome.termination,
+      message: outcome.error,
     });
   }
   trace.termination = outcome.termination;
@@ -174,19 +185,21 @@ async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number
  */
 export async function runHarness(options: HarnessOptions) {
   const limits = validateLimits(options.limits);
+  const instructions = buildContext(options.fixture.entries);
   const trace = createTrace({
     provider: options.adapter.provider,
     model: options.adapter.model,
     promptVersion: PROMPT_VERSION,
     fixture: options.fixture,
     question: options.question,
-    context: buildContext(options.fixture.entries),
+    context: instructions,
     limits,
   });
   const startedAt = Date.now();
   const run: RunContext = {
     options,
     limits,
+    instructions,
     trace,
     remainingTime: () => limits.runTimeoutMs - (Date.now() - startedAt),
     toolCallsUsed: 0,

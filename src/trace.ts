@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Entry } from './entries.js';
+import type { Limits } from './limits.js';
 import type { TraceEvent, TraceEventData, TranscriptItem, Termination } from './types.js';
 
 /**
@@ -25,7 +26,7 @@ export type Trace = {
   };
   question: string;
   context: string;
-  limits: unknown;
+  limits: Limits;
   events: TraceEvent[];
   transcript: TranscriptItem[];
   termination?: Termination;

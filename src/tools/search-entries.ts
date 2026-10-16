@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Entry } from '../entries.js';
+import type { ToolCall } from '../types.js';
 
 /** Untrusted tool argument schema; supplies limit 5 and rejects limits above 10. */
 export const searchArguments = z.object({
@@ -57,4 +58,24 @@ export function searchEntries(entries: readonly Entry[], args: SearchArguments):
   });
 
   return matches.slice(0, args.limit).map(match => ({ ...match.entry }));
+}
+
+/**
+ * Enforces the tool allowlist, batch call IDs, JSON parsing, and search schema.
+ *
+ * @param seenIds - Mutable IDs for this response batch. A new ID is reserved
+ * before name/argument checks, so rejected calls cannot reuse it in the batch.
+ * @returns Parsed search arguments with defaults applied.
+ * @throws If any identifier, tool name, JSON, or argument check fails.
+ */
+export function validateSearchCall(call: ToolCall, seenIds: Set<string>): SearchArguments {
+  if (!call.id || seenIds.has(call.id)) {
+    throw new Error('Missing or duplicate tool call identifier');
+  }
+  seenIds.add(call.id);
+
+  if (call.name !== 'search_entries') {
+    throw new Error(`Unknown tool: ${call.name}`);
+  }
+  return searchArguments.parse(JSON.parse(call.arguments));
 }

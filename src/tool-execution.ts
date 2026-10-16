@@ -1,10 +1,19 @@
-import type { HarnessOptions } from './harness.js';
+import type { Entry } from './entries.js';
 import type { SearchArguments } from './tools/search-entries.js';
-import { searchEntries } from './tools/search-entries.js';
+import { searchEntries, validateSearchCall } from './tools/search-entries.js';
 import { recordEvent, type Trace } from './trace.js';
-import type { ToolCall, ToolResult } from './types.js';
-import { validateToolCall } from './validation.js';
+import type { ToolCall, ToolOutput, ToolResult } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
+
+/** Search implementation invoked only after call authorization and validation. */
+export type SearchExecutor = (args: SearchArguments, signal: AbortSignal) => Promise<Entry[]>;
+
+/** Only the journal data, search override, and cancellation needed by execution. */
+export type ToolExecutionOptions = {
+  entries: Entry[];
+  search?: SearchExecutor;
+  signal?: AbortSignal;
+};
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -13,7 +22,7 @@ function errorMessage(error: unknown): string {
 function recordToolResult(
   trace: Trace,
   callId: string,
-  output: unknown,
+  output: ToolOutput,
   executed: boolean,
   startedAt: number,
 ): ToolResult {
@@ -49,7 +58,7 @@ function recordToolResult(
 export async function executeToolCall(
   call: ToolCall,
   seenIds: Set<string>,
-  options: HarnessOptions,
+  options: ToolExecutionOptions,
   trace: Trace,
   timeoutMs: number,
 ): Promise<ToolResult> {
@@ -57,7 +66,7 @@ export async function executeToolCall(
   let args: SearchArguments;
 
   try {
-    args = validateToolCall(call, seenIds);
+    args = validateSearchCall(call, seenIds);
     recordEvent(trace, {
       type: 'tool_validation',
       callId: call.id,
@@ -72,7 +81,7 @@ export async function executeToolCall(
       valid: false,
       error: detail,
     });
-    const output = {
+    const output: ToolOutput = {
       error: {
         code: 'invalid_tool_request',
         message: detail
@@ -87,7 +96,7 @@ export async function executeToolCall(
         if (options.search) {
           return options.search(args, signal);
         }
-        return searchEntries(options.fixture.entries, args);
+        return searchEntries(options.entries, args);
       },
       timeoutMs,
       options.signal,
@@ -95,7 +104,7 @@ export async function executeToolCall(
     return recordToolResult(trace, call.id, { entries }, true, startedAt);
   } catch (error) {
     const code = error instanceof DeadlineError ? 'timeout' : 'tool_error';
-    const output = {
+    const output: ToolOutput = {
       error: { code, message: errorMessage(error) },
     };
     recordToolResult(trace, call.id, output, true, startedAt);
