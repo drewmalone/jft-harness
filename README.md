@@ -68,3 +68,16 @@ GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull reques
 This is a learning prototype, not clinical advice or a replacement for human recovery support. See [the architecture](docs/ARCHITECTURE.md) for the loop and design tradeoffs.
 
 Next three small milestones: compare full-context and tool-retrieval runs; evaluate evidence and citation correctness; add a simple trace viewer or replay tool. Those experiments are deliberately outside v0.1.
+
+## Code documentation
+
+Use [TSDoc](https://tsdoc.org/) `/** ... */` comments for exported functions,
+interfaces, and types. Describe contracts and reasoning rather than repeating
+TypeScript types. Use `@param` for constraints or ownership that the type does
+not express, `@returns` for outcomes, and `@throws` for failures that escape to
+the caller. Keep comments beside the implementation and update them when
+behavior changes. Internal comments should explain execution order, trust
+boundaries, provider continuation, cancellation, and other non-obvious decisions.
+
+No documentation generator is required. Editors display these comments inline;
+the architecture guide explains how the components fit together.

@@ -34,12 +34,14 @@ function isCalendarDate(value: string): boolean {
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
 }
 
+/** One journal entry with a stable ASCII ID, real YYYY-MM-DD date, and text. */
 export const entrySchema = z.object({
   id: z.string().refine(isStableId, 'Expected a stable alphanumeric ID with optional hyphens or underscores'),
   date: z.string().refine(isCalendarDate, 'Invalid calendar date (expected YYYY-MM-DD)'),
   text: z.string().trim().min(1),
 }).strict();
 
+/** Nonempty journal array; rejects duplicate IDs and unknown entry properties. */
 export const fixtureSchema = z.array(entrySchema).min(1).superRefine((entries, context) => {
   const ids = new Set<string>();
   entries.forEach((entry, index) => {
@@ -55,4 +57,5 @@ export const fixtureSchema = z.array(entrySchema).min(1).superRefine((entries, c
 });
 
 
+/** Validated fictional journal data. Its text remains untrusted model input. */
 export type Entry = z.infer<typeof entrySchema>;

@@ -35,6 +35,17 @@ function recordToolResult(
   };
 }
 
+/**
+ * Validates and executes one permitted call, recording validation and results.
+ *
+ * Invalid requests return a correlated structured error for the next model
+ * turn. Journal strings remain result data and never determine tool dispatch.
+ * Budget accounting belongs to the caller, including rejected requests.
+ *
+ * @returns A result correlated with the original provider call ID.
+ * @throws On execution failure or timeout, after recording the failed result.
+ * No execution is retried automatically.
+ */
 export async function executeToolCall(
   call: ToolCall,
   seenIds: Set<string>,

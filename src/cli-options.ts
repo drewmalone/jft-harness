@@ -10,6 +10,11 @@ function positiveInteger(value: string): number {
   return number;
 }
 
+/**
+ * Parses process arguments with Commander and validates required options/budgets.
+ * Commander prints help or usage errors and exits for those paths; model
+ * credentials and fixture content are validated separately before execution.
+ */
 export function parseCliOptions() {
   const command = new Command()
     .name('jft')

@@ -1,6 +1,19 @@
+/** Signals a deadline or parent cancellation, both reported as timeout outcomes. */
 export class DeadlineError extends Error {}
 
-// Racing bounds the wait; the signal also asks cooperative work to stop.
+/**
+ * Bounds an asynchronous operation and propagates cancellation to its signal.
+ *
+ * The race bounds how long the caller waits. Work must observe the signal to
+ * stop; synchronous JavaScript cannot be forcibly interrupted by this timer.
+ * Timers and parent listeners are removed when either side settles.
+ *
+ * @param work - Operation receiving a signal scoped to this invocation.
+ * @param timeoutMs - Allowed wait in milliseconds, capped by the caller's deadline.
+ * @param parentSignal - Optional run cancellation signal.
+ * @throws {@link DeadlineError} on timeout or parent cancellation; otherwise
+ * propagates the operation's error unchanged.
+ */
 export async function withTimeout<T>(
   work: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,

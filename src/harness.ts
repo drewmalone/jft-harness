@@ -10,6 +10,13 @@ import { validateModelResponse } from './validation.js';
 
 export { DEFAULT_LIMITS, type Limits } from './limits.js';
 
+/**
+ * Inputs for a single question-answering run.
+ *
+ * Supply a fresh adapter for each run: adapters may keep continuation state.
+ * The optional search implementation exists for deterministic failure tests;
+ * its arguments still pass the same allowlist and schema validation.
+ */
 export type HarnessOptions = {
   adapter: ModelAdapter;
   question: string;
@@ -41,6 +48,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Records one provider interaction and classifies provider/response failures. */
 async function requestModel(run: RunContext, number: number, results: ToolResult[]): Promise<Turn> {
   const { options, limits, trace } = run;
   const input = { instructions: trace.context, question: options.question, results };
@@ -64,6 +72,7 @@ async function requestModel(run: RunContext, number: number, results: ToolResult
   }
 }
 
+/** Processes one response's calls in order, stopping before an over-budget call. */
 async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
   const results: ToolResult[] = [];
   const seenIds = new Set<string>();
@@ -88,6 +97,7 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
   return { results, limitReached: false };
 }
 
+/** Advances turns until an answer or budget limit; operational errors propagate. */
 async function executeLoop(run: RunContext): Promise<RunOutcome> {
   let pendingResults: ToolResult[] = [];
 
@@ -121,6 +131,7 @@ function failedOutcome(error: unknown): RunOutcome {
   return { termination, error: errorMessage(error) };
 }
 
+/** Finalizes trace metadata; persistence failure converts even an answer to failure. */
 async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number) {
   const { trace, options } = run;
   if (outcome.termination !== 'completed') {
@@ -148,6 +159,19 @@ async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number
   return { ...outcome, trace, tracePath };
 }
 
+/**
+ * Coordinates model turns and read-only searches, then attempts to save a trace.
+ *
+ * Tool calls execute sequentially in response order. Rejected calls consume
+ * budget, and tool execution failures terminate the run without retries.
+ * A response is final only when it has nonempty text and no tool calls.
+ *
+ * @param options - Validated fixture, question, fresh adapter, and run settings.
+ * @returns The termination reason, final answer on success, and trace path when
+ * persistence succeeded. Provider, tool, deadline, and trace-write failures are
+ * returned as unsuccessful outcomes rather than thrown.
+ * @throws If execution limits are invalid, before a trace is created.
+ */
 export async function runHarness(options: HarnessOptions) {
   const limits = validateLimits(options.limits);
   const trace = createTrace({

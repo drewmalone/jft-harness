@@ -1,7 +1,13 @@
 import type { Entry } from './entries.js';
 
+/** Increment when instruction behavior changes so traces identify the prompt. */
 export const PROMPT_VERSION = 'jft-v0.1-2';
 
+/**
+ * Builds trusted instructions and a date range from a validated nonempty fixture.
+ * Journal text is deliberately excluded; it reaches the model through untrusted
+ * tool results. Relative dates are anchored to the latest entry for repeatability.
+ */
 export function buildContext(entries: Entry[]) {
   const dates = entries.map(entry => entry.date).sort();
   return `You answer questions about Nelson's fictional recovery journal. Use search_entries to obtain evidence; no journal text is included initially.

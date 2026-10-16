@@ -4,6 +4,11 @@ import { join } from 'node:path';
 import type { Entry } from './entries.js';
 import type { TraceEvent, TraceEventData, TranscriptItem, Termination } from './types.js';
 
+/**
+ * Inspectable record of one attempted run, including full fictional journal data.
+ * Fields describing completion are filled at termination. This format is not a
+ * retention or redaction policy suitable for real journals.
+ */
 export type Trace = {
   schemaVersion: '1';
   runId: string;
@@ -27,6 +32,7 @@ export type Trace = {
   finalAnswer?: string;
 };
 
+/** Creates run identity, start time, and the initial logical user message. */
 export function createTrace(input: Omit<Trace, 'schemaVersion' | 'runId' | 'startedAt' | 'events' | 'transcript'>): Trace {
   return {
     ...input,
@@ -40,6 +46,12 @@ export function createTrace(input: Omit<Trace, 'schemaVersion' | 'runId' | 'star
   };
 }
 
+/**
+ * Writes a new JSON trace without overwriting an existing run file.
+ * Creates the directory if needed and requests owner-only file permissions.
+ * @returns The trace file path, only after the write succeeds.
+ * @throws On serialization or filesystem errors; the harness reports run failure.
+ */
 export async function saveTrace(trace: Trace, directory = 'traces') {
   await mkdir(directory, { recursive: true });
   const path = join(directory, `${trace.runId}.json`);
@@ -50,6 +62,7 @@ export async function saveTrace(trace: Trace, directory = 'traces') {
   return path;
 }
 
+/** Appends an event with its observation time, preserving execution order. */
 export function recordEvent(trace: Trace, event: TraceEventData): void {
   trace.events.push({
     ...event,

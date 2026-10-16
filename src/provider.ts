@@ -3,7 +3,14 @@ import type { ResponseInputItem } from 'openai/resources/responses/responses';
 import { searchTool } from './tools/search-entries.js';
 import type { ModelAdapter, ModelRequest, Turn } from './types.js';
 
-// One adapter per run: history includes opaque reasoning/output items, not just text.
+/**
+ * Maps one harness run to OpenAI Responses requests and continuation items.
+ *
+ * Create one instance per run and call it sequentially. Local history retains
+ * complete reasoning, message, and function-call items; the harness's plain
+ * logical transcript is not sufficient for provider continuation.
+ * Requests disable SDK retries and server-side response storage.
+ */
 export class OpenAIAdapter implements ModelAdapter {
   readonly provider = 'openai';
   private readonly client: OpenAI;
@@ -16,6 +23,16 @@ export class OpenAIAdapter implements ModelAdapter {
     });
   }
 
+  /**
+   * Appends correlated tool outputs and requests the next model turn.
+   *
+   * The question is appended only on the first request; instructions are sent
+   * every time. Encrypted reasoning content permits stateless continuation.
+   * Returned raw responses contain provider evidence for tracing, not headers.
+   *
+   * @throws On API/transport failures, cancellation, or unsupported output items.
+   * Discard this adapter after failure; mutated history is not rolled back.
+   */
   async request(input: ModelRequest, signal: AbortSignal): Promise<Turn> {
     if (!this.history.length) {
       this.history.push({
