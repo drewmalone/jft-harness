@@ -4,9 +4,29 @@ export class DeadlineError extends Error {}
 /**
  * Bounds an asynchronous operation and propagates cancellation to its signal.
  *
- * The race bounds how long the caller waits. Work must observe the signal to
- * stop; synchronous JavaScript cannot be forcibly interrupted by this timer.
- * Timers and parent listeners are removed when either side settles.
+ * Two promises race: the operation and a timer/parent-cancellation rejection.
+ * When the deadline wins, the caller receives DeadlineError immediately and
+ * the operation's signal is aborted. The OpenAI adapter forwards that signal
+ * to the SDK so its in-flight HTTP request can be cancelled.
+ *
+ * This does not kill arbitrary work: a task that ignores its signal may keep
+ * running after the caller stops waiting. A timer also cannot interrupt busy
+ * synchronous JavaScript because its callback needs the event loop to run.
+ * Tool implementations must therefore remain bounded and honor cancellation
+ * when performing asynchronous work. There is no automatic retry.
+ *
+ * The parent signal represents whole-run cancellation; the local timer applies
+ * only to this operation. Either path uses the same DeadlineError outcome.
+ * Finally removes the timer and parent listener even if the operation fails.
+ *
+ * @example
+ * ```ts
+ * await withTimeout(
+ *   signal => adapter.request(input, signal),
+ *   Math.min(modelTimeoutMs, remainingRunTimeMs),
+ *   runSignal,
+ * );
+ * ```
  *
  * @param work - Operation receiving a signal scoped to this invocation.
  * @param timeoutMs - Allowed wait in milliseconds, capped by the caller's deadline.
@@ -35,6 +55,7 @@ export async function withTimeout<T>(
     }
   });
 
+  // Deferring work lets an already-cancelled parent prevent it from starting.
   const operation = Promise.resolve().then(() => {
     controller.signal.throwIfAborted();
     return work(controller.signal);

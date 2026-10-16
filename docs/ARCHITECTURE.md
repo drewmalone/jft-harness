@@ -1,6 +1,6 @@
 # Architecture
 
-JFT keeps the harness explicit so two engineers can follow each decision. `cli-options.ts` uses Commander for parsing, required arguments, help and integer option validation. `config.ts` validates model credentials and defaults. `cli.ts` loads configuration, loads the fixture, supplies cancellation, and prints either a final answer or a failed-run message. `fixture-validation.ts` validates calendar dates, unique IDs and text with Zod and explicit character checks. `entries.ts` loads the file and hashes its original bytes. `context.ts` holds the versioned instructions and a small date-range context; journal content enters model context only through tool results. The latest fixture date anchors relative-date questions, making historical fixture runs reproducible.
+JFT keeps the harness explicit so two engineers can follow each decision. `cli-options.ts` uses Commander for parsing, required arguments, help and integer option validation. `config.ts` validates model credentials and defaults. `cli.ts` loads configuration, loads the fixture, supplies cancellation, and prints either a final answer or a failed-run message. `fixture-validation.ts` validates calendar dates, unique IDs and text with Zod's ISO 8601 date validator and validator's alphanumeric checks. `entries.ts` loads the file and hashes its original bytes. `context.ts` holds the versioned instructions and a small date-range context; journal content enters model context only through tool results. The latest fixture date anchors relative-date questions, making historical fixture runs reproducible.
 
 `limits.ts` validates programmatic execution budgets. `validation.ts` checks tool names, identifiers, arguments and response completion separately from execution. `tool-execution.ts` executes validated search calls and records their results. `timeout.ts` isolates deadline and cancellation handling. `harness.ts` owns orchestration and a logical user/assistant/tool transcript. Its narrow `ModelAdapter` interface permits a scripted fake for tests; it is not a universal provider framework. `provider.ts` owns the official OpenAI SDK and maps output function calls to `{id, name, arguments}` while retaining provider-specific output items. `tools/search-entries.ts` owns search arguments, the generated JSON Schema and deterministic search. `trace.ts` handles trace construction and file persistence without driving execution.
 
@@ -52,3 +52,11 @@ Search tokenization uses `Intl.Segmenter('en')` word boundaries without regular 
 There are no agents, planners, parallel tools, generic plugin registry, embeddings, vector stores, database, frontend, audio, authentication, deployment or evaluation infrastructure. Prompt changes are a versioned constant rather than a management system. Real journal use requires a separate privacy and retention design; full content traces are acceptable here only because all data is fictional.
 
 The orchestration code separates requesting a model turn, executing a sequential tool batch, advancing the loop, classifying failures, and finishing the trace. The loop itself carries only pending results and execution budgets.
+
+Fixture validation uses existing libraries for syntax and calendar rules:
+`validator` checks ASCII alphanumeric IDs with explicitly permitted `_` and `-`
+characters, and `z.iso.date()` accepts only real ISO 8601 `YYYY-MM-DD` dates.
+There is no application-owned date parser or character classifier. The duplicate
+ID check stays local because uniqueness across entries is a fixture-level rule.
+A date arithmetic library is unnecessary while the harness only validates and
+sorts dates; fixed-width ISO calendar dates sort chronologically as strings.

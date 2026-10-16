@@ -25,7 +25,7 @@ npm run typecheck
 
 On machines where npm's default cache is not writable, use `npm ci --cache /workspace/.npm-cache`.
 
-The fixture contains 18 invented entries over five weeks, including contradictory experiences, missing evidence about coffee, and an explicit injection attempt. No real journals were used. Fixtures are nonempty JSON arrays of `{ id, date, text }`; IDs must be unique, dates must be real ISO calendar dates, and unknown fields are rejected.
+The fixture contains 18 invented entries over five weeks, including contradictory experiences, missing evidence about coffee, and an explicit injection attempt. No real journals were used. Fixtures are nonempty JSON arrays of `{ id, date, text }`; IDs must be unique, dates must be real ISO 8601 calendar dates (`YYYY-MM-DD`, validated by Zod), and unknown fields are rejected.
 
 ## Execution and limits
 
@@ -61,7 +61,7 @@ Traces include fixture path, SHA-256 of the original file bytes, complete fictio
 
 ## Validation and limitations
 
-GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull requests and pushes to `main` (`.github/workflows/checks.yml`). It needs no API key.
+GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull requests and pushes to `main` (`.github/workflows/checks.yml`). It needs no API key. Dependency Review checks PR dependency changes and blocks high/critical known vulnerabilities. CodeQL scans JavaScript/TypeScript on PRs, pushes to `main`, and every Monday. These workflows use GitHub-provided authentication, not an OpenAI API key.
 
 `npm test` uses scripted model adapters and a mocked SDK. It exercises orchestration, tool dispatch, fixture validation, deadlines, provider continuation mapping, tracing and CLI failures without live calls. Tests prove that journal strings are never executed and cannot add privileged tools. They cannot prove a live model will always resist injection, cite accurately, retrieve all relevant entries, or handle contradictions correctly. Citations and answer grounding are instructed, not mechanically verified. No live OpenAI request was verified during implementation because no API key was available.
 

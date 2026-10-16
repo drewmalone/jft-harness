@@ -1,43 +1,24 @@
+import validator from 'validator';
 import { z } from 'zod';
 
-function isAsciiLetterOrDigit(character: string): boolean {
-  return (character >= 'a' && character <= 'z')
-    || (character >= 'A' && character <= 'Z')
-    || (character >= '0' && character <= '9');
-}
+/**
+ * Fixture IDs start with an ASCII letter/digit and may then contain _ or -.
+ * Delegate character validation to validator rather than maintaining a parser.
+ */
+const stableIdSchema = z.string().min(1).refine(value => {
+  const startsWithLetterOrDigit = validator.isAlphanumeric(value.charAt(0), 'en-US');
+  const hasAllowedCharacters = validator.isAlphanumeric(value, 'en-US', { ignore: '_-' });
+  return startsWithLetterOrDigit && hasAllowedCharacters;
+}, 'Expected a stable alphanumeric ID with optional hyphens or underscores');
 
-function isStableId(value: string): boolean {
-  const characters = [...value];
-  const first = characters.shift();
-  return first !== undefined
-    && isAsciiLetterOrDigit(first)
-    && characters.every(character =>
-      isAsciiLetterOrDigit(character) || character === '_' || character === '-');
-}
-
-function isCalendarDate(value: string): boolean {
-  const parts = value.split('-');
-  if (parts.length !== 3) {
-    return false;
-  }
-
-  const [year, month, day] = parts;
-  if (year?.length !== 4 || month?.length !== 2 || day?.length !== 2) {
-    return false;
-  }
-  const digits = [...year, ...month, ...day];
-  if (!digits.every(character => character >= '0' && character <= '9')) {
-    return false;
-  }
-
-  const date = new Date(value);
-  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-}
-
-/** One journal entry with a stable ASCII ID, real YYYY-MM-DD date, and text. */
+/**
+ * One journal entry with a stable ID and an ISO 8601 calendar date (YYYY-MM-DD).
+ * Zod's date validator checks the format, leap years, and calendar day ranges;
+ * datetimes and timezone-bearing timestamps are deliberately not accepted.
+ */
 export const entrySchema = z.object({
-  id: z.string().refine(isStableId, 'Expected a stable alphanumeric ID with optional hyphens or underscores'),
-  date: z.string().refine(isCalendarDate, 'Invalid calendar date (expected YYYY-MM-DD)'),
+  id: stableIdSchema,
+  date: z.iso.date(),
   text: z.string().trim().min(1),
 }).strict();
 
@@ -49,13 +30,12 @@ export const fixtureSchema = z.array(entrySchema).min(1).superRefine((entries, c
       context.addIssue({
         code: 'custom',
         path: [index, 'id'],
-        message: 'Duplicate entry ID'
+        message: 'Duplicate entry ID',
       });
     }
     ids.add(entry.id);
   });
 });
-
 
 /** Validated fictional journal data. Its text remains untrusted model input. */
 export type Entry = z.infer<typeof entrySchema>;

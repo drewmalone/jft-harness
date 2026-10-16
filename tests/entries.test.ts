@@ -44,3 +44,14 @@ describe('fixtures', () => {
     expect(fixtureSchema.safeParse(fixture).success).toBe(true);
   });
 });
+
+it.each(['entry-001', 'entry_002', 'ABC123'])('accepts stable ID %s', id => {
+  expect(fixtureSchema.safeParse([{ ...entry, id }]).success).toBe(true);
+});
+
+it.each(['_leading', 'has space', 'has/slash', 'éclair', 'has.dot'])(
+  'rejects unsupported ID %s',
+  id => {
+    expect(fixtureSchema.safeParse([{ ...entry, id }]).success).toBe(false);
+  },
+);
