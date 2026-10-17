@@ -62,3 +62,11 @@ it.each(['--model-timeout-ms', '--tool-timeout-ms', '--run-timeout-ms'])(
     });
   },
 );
+
+
+it('rejects unknown context modes before checking credentials', async () => {
+  await expect(runCli([
+    '--fixture', 'fixtures/sample-journal.json', '--question', 'What helped?',
+    '--context-mode', 'unknown',
+  ])).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('Allowed choices are retrieval, full') });
+});

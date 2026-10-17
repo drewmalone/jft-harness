@@ -34,7 +34,7 @@ const finalMessage = {
   content: [{ type: 'output_text', text: answer, annotations: [] }],
 };
 
-it.each(['success', 'provider_error'] as const)(
+it.each(['success', 'full', 'provider_error'] as const)(
   'runs the real CLI and SDK against a local Responses endpoint: %s',
   async scenario => {
     const directory = await mkdtemp(join(tmpdir(), 'jft-cli-'));
@@ -61,7 +61,7 @@ it.each(['success', 'provider_error'] as const)(
         }
 
         if (requests.length > 2) throw new Error('Unexpected extra model request');
-        const output = requests.length === 1 ? [reasoning, functionCall] : [finalMessage];
+        const output = scenario !== 'full' && requests.length === 1 ? [reasoning, functionCall] : [finalMessage];
         response.end(JSON.stringify({
           id: `resp-${requests.length}`,
           object: 'response',
@@ -93,6 +93,7 @@ it.each(['success', 'provider_error'] as const)(
         '--question', question,
         '--model', 'local-test-model',
         '--trace-dir', traceDirectory,
+        ...(scenario === 'full' ? ['--context-mode', 'full'] : []),
       ], {
         timeout: 5000,
         env: {
@@ -119,6 +120,15 @@ it.each(['success', 'provider_error'] as const)(
             output: JSON.stringify({ entries: journal }),
           },
         ]);
+      } else if (scenario === 'full') {
+        const result = await command;
+        expect(result.stdout).toContain(answer);
+        expect(requests).toHaveLength(1);
+        expect(requests[0]?.body.input).toEqual([
+          { role: 'user', content: JSON.stringify({ untrustedJournal: journal }) },
+          { role: 'user', content: question },
+        ]);
+        expect(requests[0]?.body.instructions).not.toContain(journal[0]!.text);
       } else {
         await expect(command).rejects.toMatchObject({
           code: 1,
@@ -138,7 +148,7 @@ it.each(['success', 'provider_error'] as const)(
             model: 'local-test-model',
             store: false,
             include: ['reasoning.encrypted_content'],
-            tools: [expect.objectContaining({ name: 'search_entries' })],
+            tools: scenario === 'full' ? [] : [expect.objectContaining({ name: 'search_entries' })],
           },
         });
       }
@@ -147,14 +157,19 @@ it.each(['success', 'provider_error'] as const)(
       expect(files).toHaveLength(1);
       const traceText = await readFile(join(traceDirectory, files[0]!), 'utf8');
       const trace = JSON.parse(traceText);
-      expect(trace.termination).toBe(scenario === 'success' ? 'completed' : 'provider_error');
+      expect(trace.termination).toBe(scenario === 'provider_error' ? 'provider_error' : 'completed');
       expect(traceText).not.toContain(testKey);
+      expect(trace.contextMode).toBe(scenario === 'full' ? 'full' : 'retrieval');
       if (scenario === 'success') {
         expect(trace.finalAnswer).toBe(answer);
         expect(trace.events.map((event: { type: string }) => event.type)).toEqual([
           'model_request', 'model_response', 'tool_request', 'tool_validation',
           'tool_result', 'model_request', 'model_response',
         ]);
+        expect(trace.events[1].response.usage.total_tokens).toBe(15);
+      } else if (scenario === 'full') {
+        expect(trace.finalAnswer).toBe(answer);
+        expect(trace.events.map((event: { type: string }) => event.type)).toEqual(['model_request', 'model_response']);
         expect(trace.events[1].response.usage.total_tokens).toBe(15);
       } else {
         expect(trace.finalAnswer).toBeUndefined();

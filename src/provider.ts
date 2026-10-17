@@ -26,7 +26,8 @@ export class OpenAIAdapter implements ModelAdapter {
   /**
    * Appends correlated tool outputs and requests the next model turn.
    *
-   * The question is appended only on the first request; instructions are sent
+   * Full-mode journal JSON and the question are appended only on the first
+   * request; journal text never enters trusted instructions. Instructions are sent
    * every time. Encrypted reasoning content permits stateless continuation.
    * Returned raw responses contain provider evidence for tracing, not headers.
    *
@@ -35,6 +36,12 @@ export class OpenAIAdapter implements ModelAdapter {
    */
   async request(input: ModelRequest, signal: AbortSignal): Promise<Turn> {
     if (!this.history.length) {
+      if (input.contextMode === 'full') {
+        this.history.push({
+          role: 'user',
+          content: JSON.stringify({ untrustedJournal: input.journal }),
+        });
+      }
       this.history.push({
         role: 'user',
         content: input.question
@@ -53,7 +60,7 @@ export class OpenAIAdapter implements ModelAdapter {
       model: this.model,
       instructions: input.instructions,
       input: this.history,
-      tools: [searchTool],
+      tools: input.contextMode === 'full' ? [] : [searchTool],
       store: false,
       include: ['reasoning.encrypted_content'],
     }, { signal });

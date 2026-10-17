@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Entry } from './entries.js';
 import type { Limits } from './limits.js';
-import type { TraceEvent, TraceEventData, TranscriptItem, Termination } from './types.js';
+import type { ContextMode, TraceEvent, TraceEventData, TranscriptItem, Termination } from './types.js';
 
 /**
  * Inspectable record of one attempted run, including full fictional journal data.
@@ -11,6 +11,7 @@ import type { TraceEvent, TraceEventData, TranscriptItem, Termination } from './
  * retention or redaction policy suitable for real journals.
  */
 export type Trace = {
+  contextMode: ContextMode;
   schemaVersion: '1';
   runId: string;
   startedAt: string;

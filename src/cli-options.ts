@@ -1,4 +1,5 @@
-import { Command, InvalidArgumentError } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
+import type { ContextMode } from './types.js';
 import { DEFAULT_MODEL } from './config.js';
 import { DEFAULT_LIMITS } from './limits.js';
 import { MAX_TIMER_DELAY_MS } from './timeout.js';
@@ -27,9 +28,10 @@ function timeoutDuration(value: string): number {
 export function parseCliOptions() {
   const command = new Command()
     .name('jft')
-    .description('JFT v0.1 — fictional recovery journal questions')
+    .description('JFT v0.2 — fictional recovery journal questions')
     .requiredOption('--fixture <path>', 'JSON journal fixture')
     .requiredOption('--question <text>', 'Question to answer')
+    .addOption(new Option('--context-mode <mode>', 'Journal context strategy').choices(['retrieval', 'full']).default('retrieval'))
     .option('--model <model>', `Override OPENAI_MODEL (default: ${DEFAULT_MODEL})`)
     .option('--trace-dir <directory>', 'Trace output directory', 'traces')
     .option('--max-model-requests <number>', 'Model request budget', positiveInteger, DEFAULT_LIMITS.modelRequests)
@@ -42,6 +44,7 @@ export function parseCliOptions() {
 
   command.parse();
   return command.opts<{
+    contextMode: ContextMode;
     fixture: string;
     question: string;
     model?: string;

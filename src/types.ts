@@ -1,5 +1,8 @@
 import type { Entry } from './entries.js';
 
+/** How journal evidence reaches the model. */
+export type ContextMode = 'retrieval' | 'full';
+
 /** A model-requested function call. Name and raw JSON arguments are untrusted. */
 export type ToolCall = {
   id: string;
@@ -33,8 +36,14 @@ export type Turn = {
   raw?: unknown;
 };
 
-/** Logical request input; results belong to the immediately preceding tool batch. */
+/**
+ * Logical request input; results belong to the immediately preceding tool batch.
+ * Omitted mode preserves retrieval. Full-mode journal data belongs in a separate
+ * untrusted user message, never the trusted instructions field.
+ */
 export type ModelRequest = {
+  contextMode?: ContextMode;
+  journal?: Entry[];
   instructions: string;
   question: string;
   results: ToolResult[];

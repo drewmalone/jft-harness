@@ -3,7 +3,7 @@ import type { Entry } from './entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
 import { createTrace, recordEvent, saveTrace, type Trace } from './trace.js';
-import type { FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
+import type { ContextMode, FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 export { DEFAULT_LIMITS, type Limits } from './limits.js';
@@ -16,6 +16,7 @@ export { DEFAULT_LIMITS, type Limits } from './limits.js';
  * its arguments still pass the same allowlist and schema validation.
  */
 export type HarnessOptions = {
+  contextMode?: ContextMode;
   adapter: ModelAdapter;
   question: string;
   fixture: { path: string; hash: string; entries: Entry[] };
@@ -29,6 +30,7 @@ export type HarnessOptions = {
 type RunContext = {
   options: HarnessOptions;
   limits: Limits;
+  contextMode: ContextMode;
   instructions: string;
   trace: Trace;
   remainingTime: () => number;
@@ -58,7 +60,11 @@ function validateModelResponse(response: Turn): void {
 /** Records one provider interaction and classifies provider/response failures. */
 async function requestModel(run: RunContext, number: number, results: ToolResult[]): Promise<Turn> {
   const { options, limits, trace } = run;
-  const input = { instructions: run.instructions, question: options.question, results };
+  const input = {
+    instructions: run.instructions, question: options.question, results,
+    contextMode: run.contextMode,
+    ...(run.contextMode === 'full' ? { journal: options.fixture.entries } : {}),
+  };
   recordEvent(trace, { type: 'model_request', number, input });
 
   try {
@@ -97,6 +103,7 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
       seenIds,
       {
         entries: run.options.fixture.entries,
+        toolsEnabled: run.contextMode !== 'full',
         search: run.options.search,
         signal: run.options.signal,
       },
@@ -189,12 +196,17 @@ async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number
  * @returns The termination reason, final answer on success, and trace path when
  * persistence succeeded. Provider, tool, deadline, and trace-write failures are
  * returned as unsuccessful outcomes rather than thrown.
- * @throws If execution limits are invalid, before a trace is created.
+ * @throws If execution limits or context mode are invalid, before a trace is created.
  */
 export async function runHarness(options: HarnessOptions) {
   const limits = validateLimits(options.limits);
-  const instructions = buildContext(options.fixture.entries);
+  const contextMode = options.contextMode ?? 'retrieval';
+  if (contextMode !== 'retrieval' && contextMode !== 'full') {
+    throw new Error('Invalid context mode');
+  }
+  const instructions = buildContext(options.fixture.entries, contextMode);
   const trace = createTrace({
+    contextMode,
     provider: options.adapter.provider,
     model: options.adapter.model,
     promptVersion: PROMPT_VERSION,
@@ -207,6 +219,7 @@ export async function runHarness(options: HarnessOptions) {
   const run: RunContext = {
     options,
     limits,
+    contextMode,
     instructions,
     trace,
     remainingTime: () => limits.runTimeoutMs - (Date.now() - startedAt),

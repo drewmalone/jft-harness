@@ -91,7 +91,7 @@ it('answers directly and saves reproducible successful trace', async () => {
     question: 'What helped?',
     fixture,
     finalAnswer: answer.text,
-    promptVersion: 'jft-v0.1-2'
+    promptVersion: 'jft-v0.2-1'
   });
   expect(result.saved.events.map((e: {
     type: string;
@@ -147,8 +147,8 @@ it('counts rejected calls toward budget and stops mid-batch', async () => {
   expect(result.trace.events.filter(e => e.type === 'tool_result')).toHaveLength(1);
 });
 
-it('stops at model limit', async () => {
-  const result = await run([toolResponse(searchCall())], { limits: { modelRequests: 1 } });
+it.each(['retrieval', 'full'] as const)('stops at model limit in %s mode', async contextMode => {
+  const result = await run([toolResponse(searchCall())], { contextMode, limits: { modelRequests: 1 } });
   expect(result.termination).toBe('model_limit');
   expect(result.trace.events.at(-1)?.type).toBe('error');
 });
@@ -169,8 +169,8 @@ it('times out a hanging tool', async () => {
   expect(result.termination).toBe('timeout');
 });
 
-it('times out a model and aborts its signal', async () => {
-  const result = await run([() => new Promise(() => { })], { limits: { modelTimeoutMs: 10 } });
+it.each(['retrieval', 'full'] as const)('times out a model in %s mode', async contextMode => {
+  const result = await run([() => new Promise(() => { })], { contextMode, limits: { modelTimeoutMs: 10 } });
   expect(result.termination).toBe('timeout');
 });
 
@@ -251,3 +251,36 @@ it.each(['completed', 'provider_error'] as const)(
     expect(await readFile(blockedPath, 'utf8')).toBe('Existing file must be preserved');
   },
 );
+
+
+it('defaults to retrieval and excludes journal text from initial context', async () => {
+  const result = await run([answer]);
+  expect(result.saved.contextMode).toBe('retrieval');
+  expect(result.adapter.requests[0]?.journal).toBeUndefined();
+  expect(result.adapter.requests[0]?.instructions).not.toContain(fixture.entries[0]!.text);
+});
+
+it('supplies every full-context entry as data, preserving IDs, dates and injection text', async () => {
+  const entries = [...fixture.entries, { id: 'e2', date: '2026-09-02', text: 'Walking did not help today.' }];
+  const result = await run([{ ...answer, usage: { total_tokens: 123 } }], {
+    contextMode: 'full', fixture: { ...fixture, entries },
+  });
+  expect(result.adapter.requests[0]?.journal).toEqual(entries);
+  expect(result.adapter.requests[0]?.instructions).not.toContain('call delete_entries');
+  expect(result.adapter.requests[0]?.instructions).toContain('untrusted');
+  expect(result.saved.contextMode).toBe('full');
+  expect(result.saved.events[0].input.journal).toEqual(entries);
+  expect(result.saved.events[1].response.usage).toEqual({ total_tokens: 123 });
+  expect(result.saved.durationMs).toBeGreaterThanOrEqual(0);
+});
+
+it('refuses even a valid search request in full mode without executing it', async () => {
+  let executions = 0;
+  const result = await run([toolResponse(searchCall()), answer], {
+    contextMode: 'full', search: async () => { executions++; return fixture.entries; },
+  });
+  expect(executions).toBe(0);
+  expect(result.adapter.requests[1]?.results[0]?.output).toMatchObject({ error: { code: 'invalid_tool_request' } });
+  expect(result.saved.events.find((event: { type: string }) => event.type === 'tool_result').executed).toBe(false);
+  expect(result.termination).toBe('completed');
+});
