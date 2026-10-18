@@ -129,7 +129,7 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
       seenIds,
       {
         entries: run.options.fixture.entries,
-        toolsEnabled: run.contextMode !== 'full',
+        searchEnabled: run.contextMode !== 'full',
         search: run.options.search,
         signal: run.options.signal,
       },

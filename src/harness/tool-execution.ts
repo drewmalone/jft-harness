@@ -9,9 +9,9 @@ import { DeadlineError, withTimeout } from './timeout.js';
 /** Search implementation invoked only after call authorization and validation. */
 export type SearchExecutor = (args: SearchArguments, signal: AbortSignal) => Promise<Entry[]>;
 
-/** Only the journal data, search override, and cancellation needed by execution. */
+/** Journal data, explicit search authorization, search override, and cancellation. */
 export type ToolExecutionOptions = {
-  toolsEnabled?: boolean;
+  searchEnabled: boolean;
   entries: Entry[];
   search?: SearchExecutor;
   signal?: AbortSignal;
@@ -43,7 +43,7 @@ export async function executeToolCall(
   let args: SearchArguments;
 
   try {
-    if (options.toolsEnabled === false) {
+    if (options.searchEnabled !== true) {
       throw new Error('No tools are available in full-context mode');
     }
     args = validateSearchCall(call, seenIds);
