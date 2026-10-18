@@ -7,7 +7,7 @@ decision without a large abstraction layer. Tests mirror the source groups.
   and prints the outcome. `options.ts` uses Commander for arguments and help;
   `config.ts` resolves credentials and the default model.
 - **`src/harness/`**: `run.ts` owns the explicit model/tool loop and execution budgets.
-  `context.ts` builds versioned instructions, `limits.ts` validates budgets,
+  `context.ts` builds versioned instructions, `limits.ts` owns the shared budget schemas used by both the CLI and programmatic runs,
   `timeout.ts` bounds waits, and `tool-execution.ts` validates and executes calls.
   `types.ts` holds the logical model, tool, outcome, and trace-event contracts.
 - **`src/journal/`**: `validation.ts` owns fixture schemas, ISO dates, and unique IDs.
@@ -96,3 +96,9 @@ launch the actual CLI process and SDK against a loopback HTTP server implementin
 two scripted Responses turns, then inspect correlated search results and the saved
 trace. A local 429 response also verifies nonzero exit and disabled SDK retries.
 These are protocol checks with synthetic data, not live-model validation.
+
+CLI budget parsers only convert strings to numbers and adapt Zod issues into
+Commander errors. Count and duration constraints, including Node's timer maximum,
+are defined once in `src/harness/limits.ts`; the same schemas validate direct
+harness calls. Validation remains at both public boundaries without maintaining
+two independent sets of rules.
