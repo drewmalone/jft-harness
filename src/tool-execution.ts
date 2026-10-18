@@ -1,7 +1,7 @@
 import type { Entry } from './entries.js';
 import type { SearchArguments } from './tools/search-entries.js';
 import { searchEntries, validateSearchCall } from './tools/search-entries.js';
-import { recordEvent, type Trace } from './trace.js';
+import { recordEvent, recordToolResult, type Trace } from './trace.js';
 import type { ToolCall, ToolOutput, ToolResult } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
@@ -17,31 +17,6 @@ export type ToolExecutionOptions = {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function recordToolResult(
-  trace: Trace,
-  callId: string,
-  output: ToolOutput,
-  executed: boolean,
-  startedAt: number,
-): ToolResult {
-  recordEvent(trace, {
-    type: 'tool_result',
-    callId,
-    output,
-    executed,
-    durationMs: Date.now() - startedAt,
-  });
-  trace.transcript.push({
-    role: 'tool',
-    callId,
-    output
-  });
-  return {
-    callId,
-    output
-  };
 }
 
 /**

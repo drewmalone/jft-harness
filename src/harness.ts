@@ -2,7 +2,7 @@ import { buildContext, PROMPT_VERSION } from './context.js';
 import type { Entry } from './entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
-import { createTrace, recordEvent, saveTrace, type Trace } from './trace.js';
+import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from './trace.js';
 import type { FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
@@ -67,8 +67,7 @@ async function requestModel(run: RunContext, number: number, results: ToolResult
       Math.min(limits.modelTimeoutMs, run.remainingTime()),
       options.signal,
     );
-    recordEvent(trace, { type: 'model_response', number, response });
-    trace.transcript.push({ role: 'assistant', text: response.text, calls: response.calls });
+    recordModelResponse(trace, number, response);
     validateModelResponse(response);
     return response;
   } catch (error) {

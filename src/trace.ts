@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Entry } from './entries.js';
 import type { Limits } from './limits.js';
-import type { TraceEvent, TraceEventData, TranscriptItem, Termination } from './types.js';
+import type { TraceEvent, TraceEventData, TranscriptItem, Termination, ToolOutput, ToolResult, Turn } from './types.js';
 
 /**
  * Inspectable record of one attempted run, including full fictional journal data.
@@ -69,4 +69,45 @@ export function recordEvent(trace: Trace, event: TraceEventData): void {
     ...event,
     at: new Date().toISOString()
   });
+}
+
+/** Records a model response and its logical assistant message together. */
+export function recordModelResponse(trace: Trace, number: number, response: Turn): void {
+  recordEvent(trace, { type: 'model_response', number, response });
+  trace.transcript.push({
+    role: 'assistant',
+    text: response.text,
+    calls: response.calls,
+  });
+}
+
+/**
+ * Records a tool outcome and its logical tool message together.
+ * Includes rejected requests and execution failures as well as successful search.
+ * @param startedAt - Operation start time in epoch milliseconds, for duration.
+ * @returns The correlated output for the next model request.
+ */
+export function recordToolResult(
+  trace: Trace,
+  callId: string,
+  output: ToolOutput,
+  executed: boolean,
+  startedAt: number,
+): ToolResult {
+  recordEvent(trace, {
+    type: 'tool_result',
+    callId,
+    output,
+    executed,
+    durationMs: Date.now() - startedAt,
+  });
+  trace.transcript.push({
+    role: 'tool',
+    callId,
+    output
+  });
+  return {
+    callId,
+    output
+  };
 }
