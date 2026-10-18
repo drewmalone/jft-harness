@@ -1,8 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { fixtureSchema } from './fixture-validation.js';
+import { fixtureSchema, type Entry } from './validation.js';
 
-export { entrySchema, fixtureSchema, type Entry } from './fixture-validation.js';
+export { entrySchema, fixtureSchema, type Entry } from './validation.js';
+
+/** Validated journal data plus the source path and original-content hash. */
+export type LoadedFixture = {
+  path: string;
+  hash: string;
+  entries: Entry[];
+};
 
 /**
  * Reads and validates a fictional journal fixture before harness execution.
@@ -11,7 +18,7 @@ export { entrySchema, fixtureSchema, type Entry } from './fixture-validation.js'
  * @returns The supplied path, content hash, and validated nonempty entries.
  * @throws On file access, JSON parsing, schema, calendar-date, or duplicate-ID errors.
  */
-export async function loadFixture(path: string) {
+export async function loadFixture(path: string): Promise<LoadedFixture> {
   const content = await readFile(path, 'utf8');
   return {
     path,

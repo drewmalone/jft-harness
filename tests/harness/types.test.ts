@@ -1,6 +1,7 @@
 import { it, expectTypeOf } from 'vitest';
-import type { Entry } from '../src/entries.js';
-import type { RunOutcome, ToolOutput } from '../src/types.js';
+import type { Entry } from '../../src/journal/entries.js';
+import type { RunOutcome } from '../../src/harness/run.js';
+import type { ToolOutput } from '../../src/tools/search-entries.js';
 
 // npm run typecheck verifies these contracts; Vitest discovers the assertions
 // alongside the behavioral suite without adding runtime validation machinery.

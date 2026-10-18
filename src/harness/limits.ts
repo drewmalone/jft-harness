@@ -13,14 +13,23 @@ export const DEFAULT_LIMITS = {
 /** Positive integer budgets for requests, requested tools, and operation/run waits. */
 export type Limits = typeof DEFAULT_LIMITS;
 
-const positiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
-const timeoutDuration = positiveInteger.max(MAX_TIMER_DELAY_MS);
+/** Shared count rules for CLI arguments and programmatic execution budgets. */
+export const countBudgetSchema = z.number({ error: 'Expected a positive integer' })
+  .int({ error: 'Expected a positive integer' })
+  .positive({ error: 'Expected a positive integer' })
+  .max(Number.MAX_SAFE_INTEGER, { error: 'Expected a positive safe integer' });
+
+/** Shared duration rules, including the maximum delay supported by Node timers. */
+export const timeoutBudgetSchema = countBudgetSchema.max(MAX_TIMER_DELAY_MS, {
+  error: `Timeout must be at most ${MAX_TIMER_DELAY_MS} milliseconds`,
+});
+
 const limitsSchema = z.object({
-  modelRequests: positiveInteger,
-  toolCalls: positiveInteger,
-  modelTimeoutMs: timeoutDuration,
-  toolTimeoutMs: timeoutDuration,
-  runTimeoutMs: timeoutDuration,
+  modelRequests: countBudgetSchema,
+  toolCalls: countBudgetSchema,
+  modelTimeoutMs: timeoutBudgetSchema,
+  toolTimeoutMs: timeoutBudgetSchema,
+  runTimeoutMs: timeoutBudgetSchema,
 });
 
 /**

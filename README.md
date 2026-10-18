@@ -4,7 +4,7 @@ Just for Today is a small, transparent TypeScript harness for asking questions a
 
 ## Getting started
 
-Use Node.js **24 LTS** (pinned in `.nvmrc`) and npm:
+Use Node.js **24 LTS** (pinned in `.nvmrc`, required by `package.json`, and matched by the Node 24 type definitions) and npm:
 
 ```bash
 nvm use
@@ -14,7 +14,7 @@ cp .env.example .env
 
 Set `OPENAI_API_KEY` in `.env` or your shell. Never commit it. `tsx` loads `.env` through Node's native environment-file support; existing shell variables take precedence. Tests need no real credentials or internet access. CLI integration tests bind an ephemeral loopback port.
 
-`OPENAI_MODEL` defaults to `gpt-5.4-mini`, a small GPT-5 model listed in the installed SDK, chosen for a cost-conscious tool-calling default rather than the largest model. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default lives in `src/config.ts`, outside orchestration logic.
+`OPENAI_MODEL` defaults to `gpt-5.4-mini`, a small GPT-5 model listed in the installed SDK, chosen for a cost-conscious tool-calling default rather than the largest model. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default lives in `src/cli/config.ts`, outside orchestration logic.
 
 ```bash
 npm run jft -- --fixture ./fixtures/sample-journal.json --question "What helped Nelson when he was anxious?"
@@ -43,7 +43,7 @@ Defaults and CLI overrides:
 | `--tool-timeout-ms` | 5000 |
 | `--run-timeout-ms` | 120000 |
 
-Model and tool waits are capped by the remaining overall deadline. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Timeout settings must not exceed Node's maximum timer delay of 2,147,483,647 milliseconds; oversized values are rejected rather than overflowing into short waits. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
+Model and tool waits are capped by the remaining overall deadline. Expired budgets reject before work starts, and each tool call checks the run deadline. Late results are rejected even if a busy event loop delayed the timer callback. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Timeout settings must not exceed Node's maximum timer delay of 2,147,483,647 milliseconds; oversized values are rejected rather than overflowing into short waits. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
 
 Unsuccessful runs exit nonzero and never print a partial answer as success. Missing CLI configuration and malformed fixtures fail before harness execution. Once a harness run begins, success and failure both attempt trace persistence. A failed trace write is itself an unsuccessful run. The returned in-memory trace records a `trace_write` error and clears the final-answer field; no saved path is reported.
 
@@ -81,6 +81,48 @@ boundaries, provider continuation, cancellation, and other non-obvious decisions
 
 No documentation generator is required. Editors display these comments inline;
 the architecture guide explains how the components fit together.
+
+## Project layout
+
+Source and tests are grouped by responsibility. Imports point directly to their
+owning modules; there are no barrel files or path aliases to follow.
+
+```text
+src/
+  cli/        main.ts, options.ts, config.ts — command entry and configuration
+  harness/    run.ts, context.ts, limits.ts, timeout.ts, tool-execution.ts
+  journal/    entries.ts, validation.ts — fixture loading and validation
+  providers/  model.ts, openai.ts — model contracts and Responses continuation
+  tools/      search-entries.ts — search schema, authorization, and execution
+  tracing/    trace.ts — ordered events, transcript recording, and persistence
+tests/
+  cli/        command-line checks and local HTTP integration
+  harness/    orchestration, limits, timeout, and type contracts
+  journal/    fixture validation and loading
+  providers/  OpenAI request/continuation mapping
+  tools/      search and call validation
+```
+
+`npm run jft` starts `src/cli/main.ts`. Run all tests with `npm test`, or a
+focused group with `npm test -- tests/harness`.
+
+## Commit and merge convention
+
+PR titles use [Conventional Commits](https://www.conventionalcommits.org/):
+`type(optional-scope): description`, for example `feat: add journal search`,
+`fix(harness): enforce the run deadline`, or `docs: explain tracing`.
+Breaking changes can use `!`, such as `feat!: change the fixture format`.
+
+The Conventional Commits workflow validates PR titles when PRs open, change,
+receive commits, or reopen. Allowed types are `feat`, `fix`, `docs`, `style`,
+`refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`. For a PR with
+only one commit, the action also checks that commit's message because GitHub may
+use it as the suggested squash message.
+
+Use **Squash and merge**, with the validated PR title as the final commit title.
+Review commits in a multi-commit PR do not need to be rewritten. The workflow
+checks naming; required status checks and permitted merge methods are configured
+separately in GitHub repository settings.
 
 
 ## Comparing context strategies

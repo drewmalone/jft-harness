@@ -1,6 +1,17 @@
 import { z } from 'zod';
-import type { Entry } from '../entries.js';
-import type { ToolCall } from '../types.js';
+import type { Entry } from '../journal/entries.js';
+import type { ToolCall } from '../providers/model.js';
+
+/** Search results or a structured error; an output cannot contain both. */
+export type ToolOutput =
+  | { entries: Entry[]; error?: never }
+  | {
+      error: {
+        code: 'invalid_tool_request' | 'tool_error' | 'timeout';
+        message: string;
+      };
+      entries?: never;
+    };
 
 /** Untrusted tool argument schema; supplies limit 5 and rejects limits above 10. */
 export const searchArguments = z.object({

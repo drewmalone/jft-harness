@@ -34,49 +34,67 @@ const finalMessage = {
   content: [{ type: 'output_text', text: answer, annotations: [] }],
 };
 
+type ResponseScenario = 'success' | 'full' | 'provider_error';
+
+type CapturedRequest = {
+  method: string | undefined;
+  url: string | undefined;
+  body: Record<string, unknown>;
+};
+
+function createFakeResponsesServer(scenario: ResponseScenario) {
+  const requests: CapturedRequest[] = [];
+  const serverErrors: unknown[] = [];
+
+  const server = createServer((request, response) => {
+    // Keep callback failures observable without unhandled async rejections.
+    void (async () => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) {
+        chunks.push(Buffer.from(chunk));
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      requests.push({ method: request.method, url: request.url, body });
+      response.setHeader('content-type', 'application/json');
+
+      if (scenario === 'provider_error') {
+        response.writeHead(429);
+        response.end(JSON.stringify({
+          error: { message: 'Local rate limit', type: 'rate_limit_error', code: 'rate_limit_exceeded' },
+        }));
+        return;
+      }
+
+      if (requests.length > 2) {
+        throw new Error('Unexpected extra model request');
+      }
+      const output = scenario !== 'full' && requests.length === 1 ? [reasoning, functionCall] : [finalMessage];
+      response.end(JSON.stringify({
+        id: `resp-${requests.length}`,
+        object: 'response',
+        created_at: 1_800_000_000,
+        status: 'completed',
+        model: 'local-test-model',
+        output,
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+      }));
+    })().catch(error => {
+      serverErrors.push(error);
+      response.writeHead(500);
+      response.end(JSON.stringify({ error: { message: 'Fake endpoint failed' } }));
+    });
+  });
+
+  return { server, requests, serverErrors };
+}
+
 it.each(['success', 'full', 'provider_error'] as const)(
   'runs the real CLI and SDK against a local Responses endpoint: %s',
   async scenario => {
     const directory = await mkdtemp(join(tmpdir(), 'jft-cli-'));
     const fixturePath = join(directory, 'fixture.json');
     const traceDirectory = join(directory, 'traces');
-    const requests: { method: string | undefined; url: string | undefined; body: Record<string, unknown> }[] = [];
-    const serverErrors: unknown[] = [];
-
-    const server = createServer((request, response) => {
-      // Keep callback failures observable without unhandled async rejections.
-      void (async () => {
-        const chunks: Buffer[] = [];
-        for await (const chunk of request) chunks.push(Buffer.from(chunk));
-        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        requests.push({ method: request.method, url: request.url, body });
-        response.setHeader('content-type', 'application/json');
-
-        if (scenario === 'provider_error') {
-          response.writeHead(429);
-          response.end(JSON.stringify({
-            error: { message: 'Local rate limit', type: 'rate_limit_error', code: 'rate_limit_exceeded' },
-          }));
-          return;
-        }
-
-        if (requests.length > 2) throw new Error('Unexpected extra model request');
-        const output = scenario !== 'full' && requests.length === 1 ? [reasoning, functionCall] : [finalMessage];
-        response.end(JSON.stringify({
-          id: `resp-${requests.length}`,
-          object: 'response',
-          created_at: 1_800_000_000,
-          status: 'completed',
-          model: 'local-test-model',
-          output,
-          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-        }));
-      })().catch(error => {
-        serverErrors.push(error);
-        response.writeHead(500);
-        response.end(JSON.stringify({ error: { message: 'Fake endpoint failed' } }));
-      });
-    });
+    const { server, requests, serverErrors } = createFakeResponsesServer(scenario);
 
     try {
       await writeFile(fixturePath, JSON.stringify(journal));
@@ -85,10 +103,12 @@ it.each(['success', 'full', 'provider_error'] as const)(
         server.listen(0, '127.0.0.1', resolve);
       });
       const address = server.address();
-      if (!address || typeof address === 'string') throw new Error('No local server port');
+      if (!address || typeof address === 'string') {
+        throw new Error('No local server port');
+      }
 
       const command = exec(process.execPath, [
-        '--import', 'tsx', 'src/cli.ts',
+        '--import', 'tsx', 'src/cli/main.ts',
         '--fixture', fixturePath,
         '--question', question,
         '--model', 'local-test-model',

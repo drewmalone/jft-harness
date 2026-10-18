@@ -1,12 +1,12 @@
-import { MAX_TIMER_DELAY_MS } from '../src/timeout.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { it, expect } from 'vitest';
+import { MAX_TIMER_DELAY_MS } from '../../src/harness/timeout.js';
 
 const exec = promisify(execFile);
 
 function runCli(args: string[]) {
-  return exec(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], {
+  return exec(process.execPath, ['--import', 'tsx', 'src/cli/main.ts', ...args], {
     env: { ...process.env, OPENAI_API_KEY: '' },
   });
 }

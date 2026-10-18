@@ -1,5 +1,5 @@
 import { afterEach, it, expect, vi } from 'vitest';
-import { DeadlineError, MAX_TIMER_DELAY_MS, withTimeout } from '../src/timeout.js';
+import { DeadlineError, MAX_TIMER_DELAY_MS, withTimeout } from '../../src/harness/timeout.js';
 
 afterEach(() => vi.useRealTimers());
 
@@ -65,3 +65,49 @@ it.each([MAX_TIMER_DELAY_MS + 1, Infinity, NaN])(
     expect(work).not.toHaveBeenCalled();
   },
 );
+
+it.each([0, -1])('rejects expired budget %s without starting work', async budget => {
+  vi.useFakeTimers();
+  const work = vi.fn(async () => 'done');
+
+  await expect(withTimeout(work, budget)).rejects.toBeInstanceOf(DeadlineError);
+  expect(work).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('does not start work when the budget expires before its microtask runs', async () => {
+  vi.useFakeTimers();
+  const work = vi.fn(async () => 'done');
+  const operation = withTimeout(work, 100);
+  vi.setSystemTime(Date.now() + 100);
+
+  await expect(operation).rejects.toBeInstanceOf(DeadlineError);
+  expect(work).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('rejects late results even when the event loop has not run the timer', async () => {
+  vi.useFakeTimers();
+  let operationSignal: AbortSignal | undefined;
+  const operation = withTimeout(async signal => {
+    operationSignal = signal;
+    // Moving the clock models synchronous work delaying the timer callback.
+    vi.setSystemTime(Date.now() + 100);
+    return 'late answer';
+  }, 100);
+
+  await expect(operation).rejects.toBeInstanceOf(DeadlineError);
+  expect(operationSignal?.aborted).toBe(true);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('does not start work for an already-cancelled parent', async () => {
+  vi.useFakeTimers();
+  const parent = new AbortController();
+  parent.abort();
+  const work = vi.fn(async () => 'done');
+
+  await expect(withTimeout(work, 100, parent.signal)).rejects.toBeInstanceOf(DeadlineError);
+  expect(work).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});

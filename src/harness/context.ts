@@ -1,5 +1,5 @@
-import type { ContextMode } from './types.js';
-import type { Entry } from './entries.js';
+import type { ContextMode } from '../providers/model.js';
+import type { Entry } from '../journal/entries.js';
 
 /** Increment when instruction behavior changes so traces identify the prompt. */
 export const PROMPT_VERSION = 'jft-v0.2-1';

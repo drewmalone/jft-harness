@@ -1,12 +1,29 @@
 import { buildContext, PROMPT_VERSION } from './context.js';
-import type { Entry } from './entries.js';
+import type { LoadedFixture } from '../journal/entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
-import { createTrace, recordEvent, saveTrace, type Trace } from './trace.js';
-import type { ContextMode, FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
+import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from '../tracing/trace.js';
+import type { ContextMode, ModelAdapter, ToolCall, ToolResult, Turn } from '../providers/model.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 export { DEFAULT_LIMITS, type Limits } from './limits.js';
+
+/** Why the run stopped; only completed represents a successful answer. */
+export type Termination =
+  | 'completed'
+  | 'model_limit'
+  | 'tool_limit'
+  | 'timeout'
+  | 'provider_error'
+  | 'internal_error';
+
+/** Unsuccessful termination reasons, excluding completed. */
+export type FailureReason = Exclude<Termination, 'completed'>;
+
+/** A completed run always has an answer; every failed run has an error. */
+export type RunOutcome =
+  | { termination: 'completed'; answer: string; error?: never }
+  | { termination: FailureReason; error: string; answer?: never };
 
 /**
  * Inputs for a single question-answering run.
@@ -19,7 +36,7 @@ export type HarnessOptions = {
   contextMode?: ContextMode;
   adapter: ModelAdapter;
   question: string;
-  fixture: { path: string; hash: string; entries: Entry[] };
+  fixture: LoadedFixture;
   limits?: Partial<Limits>;
   traceDirectory?: string;
   signal?: AbortSignal;
@@ -73,8 +90,7 @@ async function requestModel(run: RunContext, number: number, results: ToolResult
       Math.min(limits.modelTimeoutMs, run.remainingTime()),
       options.signal,
     );
-    recordEvent(trace, { type: 'model_response', number, response });
-    trace.transcript.push({ role: 'assistant', text: response.text, calls: response.calls });
+    recordModelResponse(trace, number, response);
     validateModelResponse(response);
     return response;
   } catch (error) {
@@ -85,6 +101,12 @@ async function requestModel(run: RunContext, number: number, results: ToolResult
   }
 }
 
+function checkRunDeadline(run: RunContext): void {
+  if (run.remainingTime() <= 0 || run.options.signal?.aborted) {
+    throw new DeadlineError('Overall deadline reached or run cancelled');
+  }
+}
+
 /** Processes one response's calls in order, stopping before an over-budget call. */
 async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
   const results: ToolResult[] = [];
@@ -92,6 +114,7 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
 
   // Preserve response order. Rejected requests consume budget too.
   for (const call of calls) {
+    checkRunDeadline(run);
     recordEvent(run.trace, { type: 'tool_request', call });
     if (run.toolCallsUsed >= run.limits.toolCalls) {
       return { results, limitReached: true };
@@ -120,9 +143,7 @@ async function executeLoop(run: RunContext): Promise<RunOutcome> {
   let pendingResults: ToolResult[] = [];
 
   for (let number = 1; number <= run.limits.modelRequests; number++) {
-    if (run.remainingTime() <= 0 || run.options.signal?.aborted) {
-      throw new DeadlineError('Overall deadline reached or run cancelled');
-    }
+    checkRunDeadline(run);
 
     const response = await requestModel(run, number, pendingResults);
     if (response.calls.length === 0) {

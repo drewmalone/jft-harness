@@ -1,14 +1,15 @@
-import type { Entry } from './entries.js';
-import type { SearchArguments } from './tools/search-entries.js';
-import { searchEntries, validateSearchCall } from './tools/search-entries.js';
-import { recordEvent, type Trace } from './trace.js';
-import type { ToolCall, ToolOutput, ToolResult } from './types.js';
+import type { Entry } from '../journal/entries.js';
+import type { SearchArguments } from '../tools/search-entries.js';
+import { searchEntries, validateSearchCall } from '../tools/search-entries.js';
+import { recordEvent, recordToolResult, type Trace } from '../tracing/trace.js';
+import type { ToolCall, ToolResult } from '../providers/model.js';
+import type { ToolOutput } from '../tools/search-entries.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 /** Search implementation invoked only after call authorization and validation. */
 export type SearchExecutor = (args: SearchArguments, signal: AbortSignal) => Promise<Entry[]>;
 
-/** Journal data, tool authorization, search override, and cancellation. */
+/** Only the journal data, search override, and cancellation needed by execution. */
 export type ToolExecutionOptions = {
   toolsEnabled?: boolean;
   entries: Entry[];
@@ -18,31 +19,6 @@ export type ToolExecutionOptions = {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function recordToolResult(
-  trace: Trace,
-  callId: string,
-  output: ToolOutput,
-  executed: boolean,
-  startedAt: number,
-): ToolResult {
-  recordEvent(trace, {
-    type: 'tool_result',
-    callId,
-    output,
-    executed,
-    durationMs: Date.now() - startedAt,
-  });
-  trace.transcript.push({
-    role: 'tool',
-    callId,
-    output
-  });
-  return {
-    callId,
-    output
-  };
 }
 
 /**
