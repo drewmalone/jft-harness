@@ -105,3 +105,21 @@ tests/
 
 `npm run jft` starts `src/cli/main.ts`. Run all tests with `npm test`, or a
 focused group with `npm test -- tests/harness`.
+
+## Commit and merge convention
+
+PR titles use [Conventional Commits](https://www.conventionalcommits.org/):
+`type(optional-scope): description`, for example `feat: add journal search`,
+`fix(harness): enforce the run deadline`, or `docs: explain tracing`.
+Breaking changes can use `!`, such as `feat!: change the fixture format`.
+
+The Conventional Commits workflow validates PR titles when PRs open, change,
+receive commits, or reopen. Allowed types are `feat`, `fix`, `docs`, `style`,
+`refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`. For a PR with
+only one commit, the action also checks that commit's message because GitHub may
+use it as the suggested squash message.
+
+Use **Squash and merge**, with the validated PR title as the final commit title.
+Review commits in a multi-commit PR do not need to be rewritten. The workflow
+checks naming; required status checks and permitted merge methods are configured
+separately in GitHub repository settings.
