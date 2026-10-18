@@ -106,6 +106,39 @@ it('answers directly and saves a reproducible successful trace', async () => {
   ]);
 });
 
+it('defaults to retrieval and excludes journal text from initial context', async () => {
+  const result = await runScenario([answer]);
+
+  expect(result.saved.contextMode).toBe('retrieval');
+  expect(result.adapter.requests[0]?.journal).toBeUndefined();
+  expect(result.adapter.requests[0]?.instructions).not.toContain(fixture.entries[0]!.text);
+});
+
+it('supplies every full-context entry as data, preserving IDs, dates and injection text', async () => {
+  const entries = [
+    ...fixture.entries,
+    { id: 'e2', date: '2026-09-02', text: 'Walking did not help today.' },
+  ];
+  const result = await runScenario([{ ...answer, usage: { total_tokens: 123 } }], {
+    contextMode: 'full',
+    fixture: { ...fixture, entries },
+  });
+
+  expect(result.adapter.requests[0]?.journal).toEqual(entries);
+  expect(result.adapter.requests[0]?.instructions).not.toContain('call delete_entries');
+  expect(result.adapter.requests[0]?.instructions).toContain('untrusted');
+  expect(result.saved.contextMode).toBe('full');
+  expect(result.saved.events[0]).toMatchObject({
+    type: 'model_request',
+    input: { journal: entries },
+  });
+  expect(result.saved.events[1]).toMatchObject({
+    type: 'model_response',
+    response: { usage: { total_tokens: 123 } },
+  });
+  expect(result.saved.durationMs).toBeGreaterThanOrEqual(0);
+});
+
 it('searches once then sends correlated output', async () => {
   const result = await runScenario([toolResponse(toolCall()), answer]);
 
@@ -173,6 +206,23 @@ it.each(invalidCalls)('rejects invalid tool call $id without execution', async c
   }));
 });
 
+it('refuses even a valid search request in full mode without executing it', async () => {
+  const search = vi.fn(async () => fixture.entries);
+
+  const result = await runScenario([toolResponse(toolCall()), answer], {
+    contextMode: 'full',
+    search,
+  });
+
+  expect(search).not.toHaveBeenCalled();
+  expect(result.adapter.requests[1]?.results[0]?.output).toMatchObject({
+    error: { code: 'invalid_tool_request' },
+  });
+  const toolResult = result.saved.events.find(event => event.type === 'tool_result');
+  expect(toolResult).toMatchObject({ executed: false });
+  expect(result.termination).toBe('completed');
+});
+
 it('counts rejected calls toward budget and stops mid-batch', async () => {
   const batch = toolResponse(
     toolCall('rejected', { name: 'bad' }),
@@ -184,6 +234,26 @@ it('counts rejected calls toward budget and stops mid-batch', async () => {
   expect(result.termination).toBe('tool_limit');
   expect(result.answer).toBeUndefined();
   expect(result.trace.events.filter(event => event.type === 'tool_result')).toHaveLength(1);
+});
+
+it('preserves all model-requested calls in traces when dispatch stops at the budget', async () => {
+  const calls = Array.from({ length: 5 }, (_, index) => toolCall(`call-${index}`));
+  const result = await runScenario([toolResponse(...calls)], { limits: { toolCalls: 1 } });
+
+  const requestedCalls = result.saved.events.reduce((count, event) => {
+    if (event.type === 'model_response') {
+      return count + event.response.calls.length;
+    }
+    return count;
+  }, 0);
+  const dispatchedCalls = result.saved.events.filter(event => event.type === 'tool_request');
+  const executedCalls = result.saved.events.filter(event =>
+    event.type === 'tool_result' && event.executed);
+
+  expect(requestedCalls).toBe(5);
+  expect(dispatchedCalls).toHaveLength(2);
+  expect(executedCalls).toHaveLength(1);
+  expect(result.termination).toBe('tool_limit');
 });
 
 it.each(['retrieval', 'full'] as const)('stops at the model limit in %s mode', async contextMode => {
@@ -359,51 +429,4 @@ it('stops a tool batch when its overall deadline expires', async () => {
   } finally {
     now.mockRestore();
   }
-});
-
-
-it('defaults to retrieval and excludes journal text from initial context', async () => {
-  const result = await runScenario([answer]);
-  expect(result.saved.contextMode).toBe('retrieval');
-  expect(result.adapter.requests[0]?.journal).toBeUndefined();
-  expect(result.adapter.requests[0]?.instructions).not.toContain(fixture.entries[0]!.text);
-});
-
-it('supplies every full-context entry as data, preserving IDs, dates and injection text', async () => {
-  const entries = [...fixture.entries, { id: 'e2', date: '2026-09-02', text: 'Walking did not help today.' }];
-  const result = await runScenario([{ ...answer, usage: { total_tokens: 123 } }], {
-    contextMode: 'full', fixture: { ...fixture, entries },
-  });
-  expect(result.adapter.requests[0]?.journal).toEqual(entries);
-  expect(result.adapter.requests[0]?.instructions).not.toContain('call delete_entries');
-  expect(result.adapter.requests[0]?.instructions).toContain('untrusted');
-  expect(result.saved.contextMode).toBe('full');
-  expect(result.saved.events[0]).toMatchObject({ type: 'model_request', input: { journal: entries } });
-  expect(result.saved.events[1]).toMatchObject({ type: 'model_response', response: { usage: { total_tokens: 123 } } });
-  expect(result.saved.durationMs).toBeGreaterThanOrEqual(0);
-});
-
-it('refuses even a valid search request in full mode without executing it', async () => {
-  let executions = 0;
-  const result = await runScenario([toolResponse(toolCall()), answer], {
-    contextMode: 'full', search: async () => { executions++; return fixture.entries; },
-  });
-  expect(executions).toBe(0);
-  expect(result.adapter.requests[1]?.results[0]?.output).toMatchObject({ error: { code: 'invalid_tool_request' } });
-  expect(result.saved.events.find(event => event.type === 'tool_result')).toMatchObject({ executed: false });
-  expect(result.termination).toBe('completed');
-});
-
-
-it('preserves all model-requested calls in traces when dispatch stops at the budget', async () => {
-  const calls = Array.from({ length: 5 }, (_, index) => toolCall(`call-${index}`));
-  const result = await runScenario([toolResponse(...calls)], { limits: { toolCalls: 1 } });
-
-  const requestedCalls = result.saved.events.reduce((count, event) =>
-    count + (event.type === 'model_response' ? event.response.calls.length : 0), 0);
-  expect(requestedCalls).toBe(5);
-  expect(result.saved.events.filter(event => event.type === 'tool_request')).toHaveLength(2);
-  expect(result.saved.events.filter(event => event.type === 'tool_result' && event.executed))
-    .toHaveLength(1);
-  expect(result.termination).toBe('tool_limit');
 });

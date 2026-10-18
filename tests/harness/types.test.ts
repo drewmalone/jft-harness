@@ -29,9 +29,13 @@ it('prevents tool outputs from containing both entries and an error', () => {
   expectTypeOf<{}>().not.toMatchTypeOf<ToolOutput>();
 });
 
-
 it('requires journal data only for full-context requests and an explicit mode', () => {
-  type Base = { instructions: string; question: string; results: [] };
+  type Base = {
+    instructions: string;
+    question: string;
+    results: [];
+  };
+
   expectTypeOf<Base>().not.toMatchTypeOf<ModelRequest>();
   expectTypeOf<Base & { contextMode: 'full' }>().not.toMatchTypeOf<ModelRequest>();
   expectTypeOf<Base & { contextMode: 'retrieval'; journal: Entry[] }>()
