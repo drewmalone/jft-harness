@@ -16,7 +16,10 @@ export class OpenAIAdapter implements ModelAdapter {
   private readonly client: OpenAI;
   private history: ResponseInputItem[] = [];
 
-  constructor(readonly model: string, apiKey: string) {
+  constructor(
+    readonly model: string,
+    apiKey: string
+  ) {
     this.client = new OpenAI({
       apiKey,
       maxRetries: 0
@@ -39,7 +42,7 @@ export class OpenAIAdapter implements ModelAdapter {
       if (input.contextMode === 'full') {
         this.history.push({
           role: 'user',
-          content: JSON.stringify({ untrustedJournal: input.journal }),
+          content: JSON.stringify({ untrustedJournal: input.journal })
         });
       }
       this.history.push({
@@ -56,17 +59,24 @@ export class OpenAIAdapter implements ModelAdapter {
       });
     }
 
-    const response = await this.client.responses.create({
-      model: this.model,
-      instructions: input.instructions,
-      input: this.history,
-      tools: input.contextMode === 'full' ? [] : [searchTool],
-      store: false,
-      include: ['reasoning.encrypted_content'],
-    }, { signal });
+    const response = await this.client.responses.create(
+      {
+        model: this.model,
+        instructions: input.instructions,
+        input: this.history,
+        tools: input.contextMode === 'full' ? [] : [searchTool],
+        store: false,
+        include: ['reasoning.encrypted_content']
+      },
+      { signal }
+    );
 
     for (const item of response.output) {
-      if (item.type === 'message' || item.type === 'reasoning' || item.type === 'function_call') {
+      if (
+        item.type === 'message' ||
+        item.type === 'reasoning' ||
+        item.type === 'function_call'
+      ) {
         this.history.push(item);
       } else {
         throw new Error(`Unsupported provider output item: ${item.type}`);
@@ -74,11 +84,11 @@ export class OpenAIAdapter implements ModelAdapter {
     }
 
     const calls = response.output
-      .filter(item => item.type === 'function_call')
-      .map(item => ({
+      .filter((item) => item.type === 'function_call')
+      .map((item) => ({
         id: item.call_id,
         name: item.name,
-        arguments: item.arguments,
+        arguments: item.arguments
       }));
 
     return {
@@ -86,7 +96,7 @@ export class OpenAIAdapter implements ModelAdapter {
       calls,
       status: response.status,
       usage: response.usage,
-      raw: response,
+      raw: response
     };
   }
 }

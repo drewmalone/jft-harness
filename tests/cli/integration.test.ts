@@ -7,7 +7,9 @@ import { promisify } from 'node:util';
 import { it, expect } from 'vitest';
 
 const exec = promisify(execFile);
-const journal = [{ id: 'entry-001', date: '2026-09-01', text: 'A walk eased anxiety.' }];
+const journal = [
+  { id: 'entry-001', date: '2026-09-01', text: 'A walk eased anxiety.' }
+];
 const question = 'What helped Nelson?';
 const answer = 'A walk eased anxiety [entry-001].';
 const testKey = 'fictional-local-test-key';
@@ -16,7 +18,7 @@ const reasoning = {
   type: 'reasoning',
   id: 'rs-1',
   summary: [],
-  encrypted_content: 'fictional-reasoning',
+  encrypted_content: 'fictional-reasoning'
 };
 const functionCall = {
   type: 'function_call',
@@ -24,14 +26,14 @@ const functionCall = {
   call_id: 'call-search-1',
   name: 'search_entries',
   arguments: '{"query":"anxiety"}',
-  status: 'completed',
+  status: 'completed'
 };
 const finalMessage = {
   type: 'message',
   id: 'msg-1',
   role: 'assistant',
   status: 'completed',
-  content: [{ type: 'output_text', text: answer, annotations: [] }],
+  content: [{ type: 'output_text', text: answer, annotations: [] }]
 };
 
 type ResponseScenario = 'success' | 'full' | 'provider_error';
@@ -59,29 +61,42 @@ function createFakeResponsesServer(scenario: ResponseScenario) {
 
       if (scenario === 'provider_error') {
         response.writeHead(429);
-        response.end(JSON.stringify({
-          error: { message: 'Local rate limit', type: 'rate_limit_error', code: 'rate_limit_exceeded' },
-        }));
+        response.end(
+          JSON.stringify({
+            error: {
+              message: 'Local rate limit',
+              type: 'rate_limit_error',
+              code: 'rate_limit_exceeded'
+            }
+          })
+        );
         return;
       }
 
       if (requests.length > 2) {
         throw new Error('Unexpected extra model request');
       }
-      const output = scenario !== 'full' && requests.length === 1 ? [reasoning, functionCall] : [finalMessage];
-      response.end(JSON.stringify({
-        id: `resp-${requests.length}`,
-        object: 'response',
-        created_at: 1_800_000_000,
-        status: 'completed',
-        model: 'local-test-model',
-        output,
-        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-      }));
-    })().catch(error => {
+      const output =
+        scenario !== 'full' && requests.length === 1
+          ? [reasoning, functionCall]
+          : [finalMessage];
+      response.end(
+        JSON.stringify({
+          id: `resp-${requests.length}`,
+          object: 'response',
+          created_at: 1_800_000_000,
+          status: 'completed',
+          model: 'local-test-model',
+          output,
+          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+        })
+      );
+    })().catch((error) => {
       serverErrors.push(error);
       response.writeHead(500);
-      response.end(JSON.stringify({ error: { message: 'Fake endpoint failed' } }));
+      response.end(
+        JSON.stringify({ error: { message: 'Fake endpoint failed' } })
+      );
     });
   });
 
@@ -90,11 +105,12 @@ function createFakeResponsesServer(scenario: ResponseScenario) {
 
 it.each(['success', 'full', 'provider_error'] as const)(
   'runs the real CLI and SDK against a local Responses endpoint: %s',
-  async scenario => {
+  async (scenario) => {
     const directory = await mkdtemp(join(tmpdir(), 'jft-cli-'));
     const fixturePath = join(directory, 'fixture.json');
     const traceDirectory = join(directory, 'traces');
-    const { server, requests, serverErrors } = createFakeResponsesServer(scenario);
+    const { server, requests, serverErrors } =
+      createFakeResponsesServer(scenario);
 
     try {
       await writeFile(fixturePath, JSON.stringify(journal));
@@ -107,21 +123,31 @@ it.each(['success', 'full', 'provider_error'] as const)(
         throw new Error('No local server port');
       }
 
-      const command = exec(process.execPath, [
-        '--import', 'tsx', 'src/cli/main.ts',
-        '--fixture', fixturePath,
-        '--question', question,
-        '--model', 'local-test-model',
-        '--trace-dir', traceDirectory,
-        ...(scenario === 'full' ? ['--context-mode', 'full'] : []),
-      ], {
-        timeout: 5000,
-        env: {
-          ...process.env,
-          OPENAI_API_KEY: testKey,
-          OPENAI_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
-        },
-      });
+      const command = exec(
+        process.execPath,
+        [
+          '--import',
+          'tsx',
+          'src/cli/main.ts',
+          '--fixture',
+          fixturePath,
+          '--question',
+          question,
+          '--model',
+          'local-test-model',
+          '--trace-dir',
+          traceDirectory,
+          ...(scenario === 'full' ? ['--context-mode', 'full'] : [])
+        ],
+        {
+          timeout: 5000,
+          env: {
+            ...process.env,
+            OPENAI_API_KEY: testKey,
+            OPENAI_BASE_URL: `http://127.0.0.1:${address.port}/v1`
+          }
+        }
+      );
 
       if (scenario === 'success') {
         const result = await command;
@@ -129,7 +155,9 @@ it.each(['success', 'full', 'provider_error'] as const)(
         expect(result.stdout).toContain(`Trace: ${traceDirectory}`);
         expect(result.stderr).toBe('');
         expect(requests).toHaveLength(2);
-        expect(requests[0]?.body.input).toEqual([{ role: 'user', content: question }]);
+        expect(requests[0]?.body.input).toEqual([
+          { role: 'user', content: question }
+        ]);
         expect(requests[1]?.body.input).toEqual([
           { role: 'user', content: question },
           reasoning,
@@ -137,23 +165,26 @@ it.each(['success', 'full', 'provider_error'] as const)(
           {
             type: 'function_call_output',
             call_id: 'call-search-1',
-            output: JSON.stringify({ entries: journal }),
-          },
+            output: JSON.stringify({ entries: journal })
+          }
         ]);
       } else if (scenario === 'full') {
         const result = await command;
         expect(result.stdout).toContain(answer);
         expect(requests).toHaveLength(1);
         expect(requests[0]?.body.input).toEqual([
-          { role: 'user', content: JSON.stringify({ untrustedJournal: journal }) },
-          { role: 'user', content: question },
+          {
+            role: 'user',
+            content: JSON.stringify({ untrustedJournal: journal })
+          },
+          { role: 'user', content: question }
         ]);
         expect(requests[0]?.body.instructions).not.toContain(journal[0]!.text);
       } else {
         await expect(command).rejects.toMatchObject({
           code: 1,
           stderr: expect.stringContaining('Run failed (provider_error)'),
-          stdout: expect.stringContaining(`Trace: ${traceDirectory}`),
+          stdout: expect.stringContaining(`Trace: ${traceDirectory}`)
         });
         // The actual SDK receives 429; retries must remain disabled.
         expect(requests).toHaveLength(1);
@@ -168,8 +199,11 @@ it.each(['success', 'full', 'provider_error'] as const)(
             model: 'local-test-model',
             store: false,
             include: ['reasoning.encrypted_content'],
-            tools: scenario === 'full' ? [] : [expect.objectContaining({ name: 'search_entries' })],
-          },
+            tools:
+              scenario === 'full'
+                ? []
+                : [expect.objectContaining({ name: 'search_entries' })]
+          }
         });
       }
 
@@ -177,19 +211,32 @@ it.each(['success', 'full', 'provider_error'] as const)(
       expect(files).toHaveLength(1);
       const traceText = await readFile(join(traceDirectory, files[0]!), 'utf8');
       const trace = JSON.parse(traceText);
-      expect(trace.termination).toBe(scenario === 'provider_error' ? 'provider_error' : 'completed');
+      expect(trace.termination).toBe(
+        scenario === 'provider_error' ? 'provider_error' : 'completed'
+      );
       expect(traceText).not.toContain(testKey);
-      expect(trace.contextMode).toBe(scenario === 'full' ? 'full' : 'retrieval');
+      expect(trace.contextMode).toBe(
+        scenario === 'full' ? 'full' : 'retrieval'
+      );
       if (scenario === 'success') {
         expect(trace.finalAnswer).toBe(answer);
-        expect(trace.events.map((event: { type: string }) => event.type)).toEqual([
-          'model_request', 'model_response', 'tool_request', 'tool_validation',
-          'tool_result', 'model_request', 'model_response',
+        expect(
+          trace.events.map((event: { type: string }) => event.type)
+        ).toEqual([
+          'model_request',
+          'model_response',
+          'tool_request',
+          'tool_validation',
+          'tool_result',
+          'model_request',
+          'model_response'
         ]);
         expect(trace.events[1].response.usage.total_tokens).toBe(15);
       } else if (scenario === 'full') {
         expect(trace.finalAnswer).toBe(answer);
-        expect(trace.events.map((event: { type: string }) => event.type)).toEqual(['model_request', 'model_response']);
+        expect(
+          trace.events.map((event: { type: string }) => event.type)
+        ).toEqual(['model_request', 'model_response']);
         expect(trace.events[1].response.usage.total_tokens).toBe(15);
       } else {
         expect(trace.finalAnswer).toBeUndefined();
@@ -197,8 +244,8 @@ it.each(['success', 'full', 'provider_error'] as const)(
       }
     } finally {
       server.closeAllConnections();
-      await new Promise<void>(resolve => server.close(() => resolve()));
+      await new Promise<void>((resolve) => server.close(() => resolve()));
       await rm(directory, { recursive: true, force: true });
     }
-  },
+  }
 );

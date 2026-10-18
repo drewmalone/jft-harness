@@ -1,12 +1,16 @@
 import { afterEach, it, expect, vi } from 'vitest';
-import { DeadlineError, MAX_TIMER_DELAY_MS, withTimeout } from '../../src/harness/timeout.js';
+import {
+  DeadlineError,
+  MAX_TIMER_DELAY_MS,
+  withTimeout
+} from '../../src/harness/timeout.js';
 
 afterEach(() => vi.useRealTimers());
 
 it('aborts cooperative work when its deadline expires', async () => {
   vi.useFakeTimers();
   let operationSignal: AbortSignal | undefined;
-  const operation = withTimeout(signal => {
+  const operation = withTimeout((signal) => {
     operationSignal = signal;
     return new Promise<never>(() => {});
   }, 100);
@@ -22,10 +26,14 @@ it('propagates parent cancellation and removes its listener', async () => {
   const parent = new AbortController();
   const removeListener = vi.spyOn(parent.signal, 'removeEventListener');
   let operationSignal: AbortSignal | undefined;
-  const operation = withTimeout(signal => {
-    operationSignal = signal;
-    return new Promise<never>(() => {});
-  }, 1000, parent.signal);
+  const operation = withTimeout(
+    (signal) => {
+      operationSignal = signal;
+      return new Promise<never>(() => {});
+    },
+    1000,
+    parent.signal
+  );
   const rejection = expect(operation).rejects.toBeInstanceOf(DeadlineError);
 
   await Promise.resolve();
@@ -45,9 +53,11 @@ it('does not overflow the maximum supported delay into an immediate timeout', as
   vi.useFakeTimers();
   let finish: (value: string) => void = () => {};
   let operationSignal: AbortSignal | undefined;
-  const operation = withTimeout(signal => {
+  const operation = withTimeout((signal) => {
     operationSignal = signal;
-    return new Promise<string>(resolve => { finish = resolve; });
+    return new Promise<string>((resolve) => {
+      finish = resolve;
+    });
   }, MAX_TIMER_DELAY_MS);
 
   await vi.advanceTimersByTimeAsync(1);
@@ -59,21 +69,26 @@ it('does not overflow the maximum supported delay into an immediate timeout', as
 
 it.each([MAX_TIMER_DELAY_MS + 1, Infinity, NaN])(
   'rejects unsupported delay %s before starting work',
-  async delay => {
+  async (delay) => {
     const work = vi.fn(async () => 'done');
     await expect(withTimeout(work, delay)).rejects.toBeInstanceOf(RangeError);
     expect(work).not.toHaveBeenCalled();
-  },
+  }
 );
 
-it.each([0, -1])('rejects expired budget %s without starting work', async budget => {
-  vi.useFakeTimers();
-  const work = vi.fn(async () => 'done');
+it.each([0, -1])(
+  'rejects expired budget %s without starting work',
+  async (budget) => {
+    vi.useFakeTimers();
+    const work = vi.fn(async () => 'done');
 
-  await expect(withTimeout(work, budget)).rejects.toBeInstanceOf(DeadlineError);
-  expect(work).not.toHaveBeenCalled();
-  expect(vi.getTimerCount()).toBe(0);
-});
+    await expect(withTimeout(work, budget)).rejects.toBeInstanceOf(
+      DeadlineError
+    );
+    expect(work).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  }
+);
 
 it('does not start work when the budget expires before its microtask runs', async () => {
   vi.useFakeTimers();
@@ -89,7 +104,7 @@ it('does not start work when the budget expires before its microtask runs', asyn
 it('rejects late results even when the event loop has not run the timer', async () => {
   vi.useFakeTimers();
   let operationSignal: AbortSignal | undefined;
-  const operation = withTimeout(async signal => {
+  const operation = withTimeout(async (signal) => {
     operationSignal = signal;
     // Moving the clock models synchronous work delaying the timer callback.
     vi.setSystemTime(Date.now() + 100);
@@ -107,7 +122,9 @@ it('does not start work for an already-cancelled parent', async () => {
   parent.abort();
   const work = vi.fn(async () => 'done');
 
-  await expect(withTimeout(work, 100, parent.signal)).rejects.toBeInstanceOf(DeadlineError);
+  await expect(withTimeout(work, 100, parent.signal)).rejects.toBeInstanceOf(
+    DeadlineError
+  );
   expect(work).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
 });

@@ -19,8 +19,6 @@ Set `OPENAI_API_KEY` in `.env` or your shell. Never commit it. `tsx` loads `.env
 ```bash
 npm run jft -- --fixture ./fixtures/sample-journal.json --question "What helped Nelson when he was anxious?"
 npm run jft -- --help
-npm test
-npm run typecheck
 ```
 
 On machines where npm's default cache is not writable, use `npm ci --cache /workspace/.npm-cache`.
@@ -35,13 +33,13 @@ The harness validates an explicit tool allowlist and all JSON arguments before e
 
 Defaults and CLI overrides:
 
-| Flag | Default |
-| --- | ---: |
-| `--max-model-requests` | 5 |
-| `--max-tool-calls` | 6 |
-| `--model-timeout-ms` | 30000 |
-| `--tool-timeout-ms` | 5000 |
-| `--run-timeout-ms` | 120000 |
+| Flag                   | Default |
+| ---------------------- | ------: |
+| `--max-model-requests` |       5 |
+| `--max-tool-calls`     |       6 |
+| `--model-timeout-ms`   |   30000 |
+| `--tool-timeout-ms`    |    5000 |
+| `--run-timeout-ms`     |  120000 |
 
 Model and tool waits are capped by the remaining overall deadline. Expired budgets reject before work starts, and each tool call checks the run deadline. Late results are rejected even if a busy event loop delayed the timer callback. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Timeout settings must not exceed Node's maximum timer delay of 2,147,483,647 milliseconds; oversized values are rejected rather than overflowing into short waits. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
 
@@ -61,69 +59,13 @@ Traces include fixture path, SHA-256 of the original file bytes, complete fictio
 
 ## Validation and limitations
 
-GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull requests and pushes to `main` (`.github/workflows/checks.yml`). It needs no API key. Dependency Review checks PR dependency changes and blocks high/critical known vulnerabilities. CodeQL scans JavaScript/TypeScript on PRs, pushes to `main`, and every Monday. These workflows use GitHub-provided authentication, not an OpenAI API key.
+For development setup, verification commands, code documentation, and PR conventions, see [CONTRIBUTING.md](CONTRIBUTING.md). [Repository standards](docs/REPOSITORY_STANDARDS.md) describe CI, dependency maintenance, and intended versus observed GitHub settings. See the [data glossary](docs/DATA_GLOSSARY.md) for shared terminology.
 
 `npm test` uses scripted model adapters, SDK request snapshots, and the actual SDK against a local fake Responses endpoint. The CLI integration tests exercise search continuation, final output, saved traces, and a 429 failure with no automatic retry. The fake endpoint uses the SDK's existing `OPENAI_BASE_URL` environment setting and a synthetic key; these tests do not call OpenAI. It exercises orchestration, tool dispatch, fixture validation, deadlines, provider continuation mapping, tracing and CLI failures without live OpenAI calls. Tests prove that journal strings are never executed and cannot add privileged tools. They cannot prove a live model will always resist injection, cite accurately, retrieve all relevant entries, or handle contradictions correctly. Citations and answer grounding are instructed, not mechanically verified. No live OpenAI request was verified during implementation because no API key was available.
 
 This is a learning prototype, not clinical advice or a replacement for human recovery support. See [the architecture](docs/ARCHITECTURE.md) for the loop and design tradeoffs.
 
 Next milestones: evaluate evidence and citation correctness; add a simple trace viewer or replay tool.
-
-## Code documentation
-
-Use [TSDoc](https://tsdoc.org/) `/** ... */` comments for exported functions,
-interfaces, and types. Describe contracts and reasoning rather than repeating
-TypeScript types. Use `@param` for constraints or ownership that the type does
-not express, `@returns` for outcomes, and `@throws` for failures that escape to
-the caller. Keep comments beside the implementation and update them when
-behavior changes. Internal comments should explain execution order, trust
-boundaries, provider continuation, cancellation, and other non-obvious decisions.
-
-No documentation generator is required. Editors display these comments inline;
-the architecture guide explains how the components fit together.
-
-## Project layout
-
-Source and tests are grouped by responsibility. Imports point directly to their
-owning modules; there are no barrel files or path aliases to follow.
-
-```text
-src/
-  cli/        main.ts, options.ts, config.ts — command entry and configuration
-  harness/    run.ts, context.ts, limits.ts, timeout.ts, tool-execution.ts
-  journal/    entries.ts, validation.ts — fixture loading and validation
-  providers/  model.ts, openai.ts — model contracts and Responses continuation
-  tools/      search-entries.ts — search schema, authorization, and execution
-  tracing/    trace.ts — ordered events, transcript recording, and persistence
-tests/
-  cli/        command-line checks and local HTTP integration
-  harness/    orchestration, limits, timeout, and type contracts
-  journal/    fixture validation and loading
-  providers/  OpenAI request/continuation mapping
-  tools/      search and call validation
-```
-
-`npm run jft` starts `src/cli/main.ts`. Run all tests with `npm test`, or a
-focused group with `npm test -- tests/harness`.
-
-## Commit and merge convention
-
-PR titles use [Conventional Commits](https://www.conventionalcommits.org/):
-`type(optional-scope): description`, for example `feat: add journal search`,
-`fix(harness): enforce the run deadline`, or `docs: explain tracing`.
-Breaking changes can use `!`, such as `feat!: change the fixture format`.
-
-The Conventional Commits workflow validates PR titles when PRs open, change,
-receive commits, or reopen. Allowed types are `feat`, `fix`, `docs`, `style`,
-`refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`. For a PR with
-only one commit, the action also checks that commit's message because GitHub may
-use it as the suggested squash message.
-
-Use **Squash and merge**, with the validated PR title as the final commit title.
-Review commits in a multi-commit PR do not need to be rewritten. The workflow
-checks naming; required status checks and permitted merge methods are configured
-separately in GitHub repository settings.
-
 
 ## Comparing context strategies
 

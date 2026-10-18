@@ -1,4 +1,4 @@
-import type { Entry } from '../journal/entries.js';
+import type { Entry } from '../journal/validation.js';
 import type { SearchArguments } from '../tools/search-entries.js';
 import { searchEntries, validateSearchCall } from '../tools/search-entries.js';
 import { recordEvent, recordToolResult, type Trace } from '../tracing/trace.js';
@@ -7,7 +7,10 @@ import type { ToolOutput } from '../tools/search-entries.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 /** Search implementation invoked only after call authorization and validation. */
-export type SearchExecutor = (args: SearchArguments, signal: AbortSignal) => Promise<Entry[]>;
+export type SearchExecutor = (
+  args: SearchArguments,
+  signal: AbortSignal
+) => Promise<Entry[]>;
 
 /** Journal data, explicit search authorization, search override, and cancellation. */
 export type ToolExecutionOptions = {
@@ -37,7 +40,7 @@ export async function executeToolCall(
   seenIds: Set<string>,
   options: ToolExecutionOptions,
   trace: Trace,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<ToolResult> {
   const startedAt = Date.now();
   let args: SearchArguments;
@@ -51,7 +54,7 @@ export async function executeToolCall(
       type: 'tool_validation',
       callId: call.id,
       valid: true,
-      input: args,
+      input: args
     });
   } catch (error) {
     const detail = errorMessage(error);
@@ -59,36 +62,35 @@ export async function executeToolCall(
       type: 'tool_validation',
       callId: call.id,
       valid: false,
-      error: detail,
+      error: detail
     });
     const output: ToolOutput = {
       error: {
         code: 'invalid_tool_request',
         message: detail
-      },
+      }
     };
     return recordToolResult(trace, call.id, output, false, startedAt);
   }
 
   try {
     const entries = await withTimeout(
-      async signal => {
+      async (signal) => {
         if (options.search) {
           return options.search(args, signal);
         }
         return searchEntries(options.entries, args);
       },
       timeoutMs,
-      options.signal,
+      options.signal
     );
     return recordToolResult(trace, call.id, { entries }, true, startedAt);
   } catch (error) {
     const code = error instanceof DeadlineError ? 'timeout' : 'tool_error';
     const output: ToolOutput = {
-      error: { code, message: errorMessage(error) },
+      error: { code, message: errorMessage(error) }
     };
     recordToolResult(trace, call.id, output, true, startedAt);
     throw error;
   }
 }
-

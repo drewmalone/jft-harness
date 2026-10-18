@@ -28,16 +28,18 @@ async function main() {
         toolCalls: options.maxToolCalls,
         modelTimeoutMs: options.modelTimeoutMs,
         toolTimeoutMs: options.toolTimeoutMs,
-        runTimeoutMs: options.runTimeoutMs,
+        runTimeoutMs: options.runTimeoutMs
       },
       traceDirectory: options.traceDir,
-      signal: controller.signal,
+      signal: controller.signal
     });
 
     if (result.termination === 'completed') {
       console.log(result.answer);
     } else {
-      console.error(`Run failed (${result.termination}): ${result.error}. Inspect the trace and configuration before retrying.`);
+      console.error(
+        `Run failed (${result.termination}): ${result.error}. Inspect the trace and configuration before retrying.`
+      );
       process.exitCode = 1;
     }
     if (result.tracePath) {
@@ -49,7 +51,7 @@ async function main() {
   }
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });

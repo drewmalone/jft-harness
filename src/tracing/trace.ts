@@ -5,7 +5,13 @@ import type { LoadedFixture } from '../journal/entries.js';
 import type { Limits } from '../harness/limits.js';
 import type { Termination } from '../harness/run.js';
 import type { ToolOutput } from '../tools/search-entries.js';
-import type { ContextMode, ModelRequest, ToolCall, ToolResult, Turn } from '../providers/model.js';
+import type {
+  ContextMode,
+  ModelRequest,
+  ToolCall,
+  ToolResult,
+  Turn
+} from '../providers/model.js';
 
 /** Logical conversation view for inspection; does not replace provider history. */
 export type TranscriptItem =
@@ -65,16 +71,19 @@ export type Trace = {
 };
 
 /** Creates run identity, start time, and the initial logical user message. */
-export function createTrace(input: Omit<Trace, 'schemaVersion' | 'runId' | 'startedAt' | 'events' | 'transcript'>): Trace {
+export function createTrace(
+  input: Omit<
+    Trace,
+    'schemaVersion' | 'runId' | 'startedAt' | 'events' | 'transcript'
+  >
+): Trace {
   return {
     ...input,
     schemaVersion: '1',
     runId: randomUUID(),
     startedAt: new Date().toISOString(),
     events: [],
-    transcript: [
-      { role: 'user', text: input.question },
-    ],
+    transcript: [{ role: 'user', text: input.question }]
   };
 }
 
@@ -103,12 +112,16 @@ export function recordEvent(trace: Trace, event: TraceEventData): void {
 }
 
 /** Records a model response and its logical assistant message together. */
-export function recordModelResponse(trace: Trace, number: number, response: Turn): void {
+export function recordModelResponse(
+  trace: Trace,
+  number: number,
+  response: Turn
+): void {
   recordEvent(trace, { type: 'model_response', number, response });
   trace.transcript.push({
     role: 'assistant',
     text: response.text,
-    calls: response.calls,
+    calls: response.calls
   });
 }
 
@@ -123,14 +136,14 @@ export function recordToolResult(
   callId: string,
   output: ToolOutput,
   executed: boolean,
-  startedAt: number,
+  startedAt: number
 ): ToolResult {
   recordEvent(trace, {
     type: 'tool_result',
     callId,
     output,
     executed,
-    durationMs: Date.now() - startedAt,
+    durationMs: Date.now() - startedAt
   });
   trace.transcript.push({
     role: 'tool',

@@ -1,0 +1,49 @@
+{
+  "contextMode": "retrieval",
+  "schemaVersion": "1",
+  "runId": "00000000-0000-4000-8000-000000000001",
+  "startedAt": "2026-09-01T12:00:00.000Z",
+  "endedAt": "2026-09-01T12:00:00.010Z",
+  "durationMs": 10,
+  "provider": "fictional",
+  "model": "scripted",
+  "promptVersion": "compatibility-fixture",
+  "fixture": {
+    "path": "fictional.json",
+    "hash": "fictional-content-hash",
+    "entries": [
+      {
+        "id": "entry-001",
+        "date": "2026-09-01",
+        "text": "A fictional walk helped."
+      }
+    ]
+  },
+  "question": "What helped?",
+  "context": "Fictional compatibility fixture; no provider request is made.",
+  "limits": {
+    "modelRequests": 5,
+    "toolCalls": 6,
+    "modelTimeoutMs": 30000,
+    "toolTimeoutMs": 5000,
+    "runTimeoutMs": 120000
+  },
+  "events": [
+    {
+      "type": "model_response",
+      "number": 1,
+      "at": "2026-09-01T12:00:00.010Z",
+      "response": {
+        "text": "A walk helped [entry-001].",
+        "calls": [],
+        "raw": { "fictional_provider_metadata": { "preserve": true } }
+      }
+    }
+  ],
+  "transcript": [
+    { "role": "user", "text": "What helped?" },
+    { "role": "assistant", "text": "A walk helped [entry-001].", "calls": [] }
+  ],
+  "termination": "completed",
+  "finalAnswer": "A walk helped [entry-001]."
+}

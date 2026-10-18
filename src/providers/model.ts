@@ -1,4 +1,4 @@
-import type { Entry } from '../journal/entries.js';
+import type { Entry } from '../journal/validation.js';
 import type { ToolOutput } from '../tools/search-entries.js';
 
 /** How journal evidence reaches the model. */

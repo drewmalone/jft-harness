@@ -11,8 +11,9 @@ decision without a large abstraction layer. Tests mirror the source groups.
   `timeout.ts` bounds waits, and `tool-execution.ts` validates and executes calls.
   Run termination and outcome types live beside the loop in `run.ts`.
 - **`src/journal/`**: `validation.ts` owns fixture schemas, ISO dates, and unique IDs.
-  `entries.ts` reads and hashes the fixture file and exports the shared
-  `LoadedFixture` type used by the harness and traces.
+  `entries.ts` reads and hashes the fixture file and owns the
+  `LoadedFixture` type used by the harness and traces. Entry types and schemas
+  are imported directly from `validation.ts`.
 - **`src/providers/`**: `model.ts` holds the normalized model request, response,
   tool-call, and adapter contracts. `openai.ts` maps the official SDK's Responses
   items into harness turns while preserving provider-specific continuation state.
@@ -106,3 +107,25 @@ Commander errors. Count and duration constraints, including Node's timer maximum
 are defined once in `src/harness/limits.ts`; the same schemas validate direct
 harness calls. Validation remains at both public boundaries without maintaining
 two independent sets of rules.
+
+## Development tooling decisions
+
+The CLI executes TypeScript through `tsx`; there is no distributable build artifact,
+so verification uses `tsc --noEmit` rather than adding a build step. TypeScript ESLint
+recommended code rules apply without web framework presets. Prettier owns formatting,
+and its ESLint compatibility configuration disables conflicting style rules.
+[CONTRIBUTING.md](../CONTRIBUTING.md) owns commands and contributor instructions.
+
+The existing CLI, orchestration, provider, tools, validation, and tracing boundaries
+remain cohesive. Forwarding exports from the fixture loader and orchestration module
+are removed so imports identify the owning module directly. No new execution
+abstraction or directory hierarchy is needed for workflow alignment.
+
+The compiler uses the same TypeScript 5.9 line as the app because the selected
+TypeScript ESLint parser supports TypeScript below 6.1, not the previously installed
+7.x line. Peer dependencies are resolved normally without compatibility bypasses.
+
+Tracing tests keep a fixed fictional schema-version-1 record, including opaque
+provider metadata, and verify lossless persistence, owner-only file creation, and
+refusal to overwrite an existing run. Existing orchestration and local HTTP tests
+continue to exercise generated success and failure traces.

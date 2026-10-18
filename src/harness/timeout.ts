@@ -45,10 +45,12 @@ export class DeadlineError extends Error {}
 export async function withTimeout<T>(
   work: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
-  parentSignal?: AbortSignal,
+  parentSignal?: AbortSignal
 ): Promise<T> {
   if (!Number.isFinite(timeoutMs) || timeoutMs > MAX_TIMER_DELAY_MS) {
-    throw new RangeError(`timeoutMs must be finite and at most ${MAX_TIMER_DELAY_MS}`);
+    throw new RangeError(
+      `timeoutMs must be finite and at most ${MAX_TIMER_DELAY_MS}`
+    );
   }
 
   if (timeoutMs <= 0 || parentSignal?.aborted) {
