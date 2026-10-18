@@ -88,7 +88,7 @@ it.each(['success', 'provider_error'] as const)(
       if (!address || typeof address === 'string') throw new Error('No local server port');
 
       const command = exec(process.execPath, [
-        '--import', 'tsx', 'src/cli.ts',
+        '--import', 'tsx', 'src/cli/main.ts',
         '--fixture', fixturePath,
         '--question', question,
         '--model', 'local-test-model',

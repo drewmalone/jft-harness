@@ -23,7 +23,7 @@ vi.mock('openai', () => ({
   },
 }));
 
-import { OpenAIAdapter } from '../src/provider.js';
+import { OpenAIAdapter } from '../../src/providers/openai.js';
 
 beforeEach(() => {
   create.mockReset();

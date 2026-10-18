@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { Entry } from '../entries.js';
-import type { ToolCall } from '../types.js';
+import type { Entry } from '../journal/entries.js';
+import type { ToolCall } from '../harness/types.js';
 
 /** Untrusted tool argument schema; supplies limit 5 and rejects limits above 10. */
 export const searchArguments = z.object({

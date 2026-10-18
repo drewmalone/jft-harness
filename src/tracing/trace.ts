@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Entry } from './entries.js';
-import type { Limits } from './limits.js';
-import type { TraceEvent, TraceEventData, TranscriptItem, Termination, ToolOutput, ToolResult, Turn } from './types.js';
+import type { Entry } from '../journal/entries.js';
+import type { Limits } from '../harness/limits.js';
+import type { TraceEvent, TraceEventData, TranscriptItem, Termination, ToolOutput, ToolResult, Turn } from '../harness/types.js';
 
 /**
  * Inspectable record of one attempted run, including full fictional journal data.

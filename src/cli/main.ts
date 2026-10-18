@@ -1,9 +1,9 @@
 import { resolve } from 'node:path';
-import { parseCliOptions } from './cli-options.js';
+import { parseCliOptions } from './options.js';
 import { readModelConfig } from './config.js';
-import { loadFixture } from './entries.js';
-import { runHarness } from './harness.js';
-import { OpenAIAdapter } from './provider.js';
+import { loadFixture } from '../journal/entries.js';
+import { runHarness } from '../harness/run.js';
+import { OpenAIAdapter } from '../providers/openai.js';
 
 async function main() {
   const options = parseCliOptions();

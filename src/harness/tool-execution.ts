@@ -1,7 +1,7 @@
-import type { Entry } from './entries.js';
-import type { SearchArguments } from './tools/search-entries.js';
-import { searchEntries, validateSearchCall } from './tools/search-entries.js';
-import { recordEvent, recordToolResult, type Trace } from './trace.js';
+import type { Entry } from '../journal/entries.js';
+import type { SearchArguments } from '../tools/search-entries.js';
+import { searchEntries, validateSearchCall } from '../tools/search-entries.js';
+import { recordEvent, recordToolResult, type Trace } from '../tracing/trace.js';
 import type { ToolCall, ToolOutput, ToolResult } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 

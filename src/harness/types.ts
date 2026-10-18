@@ -1,4 +1,4 @@
-import type { Entry } from './entries.js';
+import type { Entry } from '../journal/entries.js';
 
 /** A model-requested function call. Name and raw JSON arguments are untrusted. */
 export type ToolCall = {

@@ -1,8 +1,8 @@
 import { buildContext, PROMPT_VERSION } from './context.js';
-import type { Entry } from './entries.js';
+import type { Entry } from '../journal/entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
-import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from './trace.js';
+import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from '../tracing/trace.js';
 import type { FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 

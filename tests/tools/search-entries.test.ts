@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { searchArguments, searchEntries, searchTool } from '../src/tools/search-entries.js';
+import { searchArguments, searchEntries, searchTool, validateSearchCall } from '../../src/tools/search-entries.js';
 
 const entries = ['Sponsor anxiety', 'Anxiety', 'sponsor anxiety anxiety', 'walking'].map((text, i) => ({
   id: `e${i}`,
@@ -40,4 +40,12 @@ it('segments punctuation and Unicode words without regular expressions', () => {
   ];
   const results = searchEntries(journal, { query: 'café sponsor', limit: 5 });
   expect(results.map(entry => entry.id)).toEqual(['one']);
+});
+
+it('rejects duplicate and missing call IDs before tool execution', () => {
+  const seenIds = new Set<string>();
+  const call = { id: 'call-1', name: 'search_entries', arguments: '{"query":"walk"}' };
+  expect(validateSearchCall(call, seenIds)).toEqual({ query: 'walk', limit: 5 });
+  expect(() => validateSearchCall(call, seenIds)).toThrow('duplicate');
+  expect(() => validateSearchCall({ ...call, id: '' }, seenIds)).toThrow('Missing');
 });

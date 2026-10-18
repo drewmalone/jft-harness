@@ -1,8 +1,29 @@
 # Architecture
 
-JFT keeps the harness explicit so two engineers can follow each decision. `cli-options.ts` uses Commander for parsing, required arguments, help and integer option validation. `config.ts` validates model credentials and defaults. `cli.ts` loads configuration, loads the fixture, supplies cancellation, and prints either a final answer or a failed-run message. `fixture-validation.ts` validates calendar dates, unique IDs and text with Zod's ISO 8601 date validator and validator's alphanumeric checks. `entries.ts` loads the file and hashes its original bytes. `context.ts` holds the versioned instructions and a small date-range context; journal content enters model context only through tool results. The latest fixture date anchors relative-date questions, making historical fixture runs reproducible.
+JFT groups source and tests by responsibility so two engineers can follow each
+decision without a large abstraction layer. Tests mirror the source groups.
 
-`limits.ts` validates programmatic execution budgets. `tools/search-entries.ts` owns tool authorization and argument validation; response completion is checked beside model-turn handling in the harness. `tool-execution.ts` executes validated search calls and records their results. `timeout.ts` isolates deadline and cancellation handling. `harness.ts` owns orchestration and a logical user/assistant/tool transcript. Its narrow `ModelAdapter` interface permits a scripted fake for tests; it is not a universal provider framework. `provider.ts` owns the official OpenAI SDK and maps output function calls to `{id, name, arguments}` while retaining provider-specific output items. `tools/search-entries.ts` owns search arguments, the generated JSON Schema and deterministic search. `trace.ts` handles trace construction and file persistence without driving execution. Its model-response and tool-result recording functions update the event stream and logical transcript together, so callers cannot accidentally record one without the other.
+- **`src/cli/`**: `main.ts` starts the command, loads the fixture, handles cancellation,
+  and prints the outcome. `options.ts` uses Commander for arguments and help;
+  `config.ts` resolves credentials and the default model.
+- **`src/harness/`**: `run.ts` owns the explicit model/tool loop and execution budgets.
+  `context.ts` builds versioned instructions, `limits.ts` validates budgets,
+  `timeout.ts` bounds waits, and `tool-execution.ts` validates and executes calls.
+  `types.ts` holds the logical model, tool, outcome, and trace-event contracts.
+- **`src/journal/`**: `validation.ts` owns fixture schemas, ISO dates, and unique IDs.
+  `entries.ts` reads and hashes the fixture file.
+- **`src/providers/`**: `openai.ts` maps the official SDK's Responses items into
+  harness turns while preserving provider-specific continuation state.
+- **`src/tools/`**: `search-entries.ts` owns search arguments, the generated tool
+  declaration, call authorization, and deterministic keyword search.
+- **`src/tracing/`**: `trace.ts` creates and persists traces. Its recording functions
+  update events and the logical transcript together. Tracing observes execution.
+
+The model receives journal text only through untrusted tool results. Context
+contains the fixture date range, and relative dates use the latest journal date
+for repeatability. The narrow `ModelAdapter` contract enables scripted tests;
+it is not a universal provider framework. Imports stay explicit, without barrel
+files or path aliases.
 
 ## One tool interaction
 

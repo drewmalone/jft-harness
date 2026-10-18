@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { fixtureSchema } from './fixture-validation.js';
+import { fixtureSchema } from './validation.js';
 
-export { entrySchema, fixtureSchema, type Entry } from './fixture-validation.js';
+export { entrySchema, fixtureSchema, type Entry } from './validation.js';
 
 /**
  * Reads and validates a fictional journal fixture before harness execution.

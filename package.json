@@ -7,7 +7,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "jft": "tsx --env-file-if-exists=.env src/cli.ts",
+    "jft": "tsx --env-file-if-exists=.env src/cli/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

@@ -1,4 +1,4 @@
-import type { Entry } from './entries.js';
+import type { Entry } from '../journal/entries.js';
 
 /** Increment when instruction behavior changes so traces identify the prompt. */
 export const PROMPT_VERSION = 'jft-v0.1-2';

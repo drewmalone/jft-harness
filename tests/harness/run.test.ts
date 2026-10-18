@@ -2,8 +2,8 @@ import { afterEach, it, expect, vi } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runHarness } from '../src/harness.js';
-import type { ModelAdapter, ModelRequest, Turn } from '../src/types.js';
+import { runHarness } from '../../src/harness/run.js';
+import type { ModelAdapter, ModelRequest, Turn } from '../../src/harness/types.js';
 
 const fixture = {
   path: 'fictional.json',

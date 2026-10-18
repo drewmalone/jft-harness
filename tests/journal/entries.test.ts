@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fixtureSchema, loadFixture } from '../src/entries.js';
+import { fixtureSchema, loadFixture } from '../../src/journal/entries.js';
 
 const entry = {
   id: 'entry-001',

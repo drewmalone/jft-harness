@@ -1,5 +1,5 @@
 import { afterEach, it, expect, vi } from 'vitest';
-import { DeadlineError, MAX_TIMER_DELAY_MS, withTimeout } from '../src/timeout.js';
+import { DeadlineError, MAX_TIMER_DELAY_MS, withTimeout } from '../../src/harness/timeout.js';
 
 afterEach(() => vi.useRealTimers());
 

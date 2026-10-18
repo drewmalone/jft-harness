@@ -1,7 +1,7 @@
 import { Command, InvalidArgumentError } from 'commander';
 import { DEFAULT_MODEL } from './config.js';
-import { DEFAULT_LIMITS } from './limits.js';
-import { MAX_TIMER_DELAY_MS } from './timeout.js';
+import { DEFAULT_LIMITS } from '../harness/limits.js';
+import { MAX_TIMER_DELAY_MS } from '../harness/timeout.js';
 
 function positiveInteger(value: string): number {
   const number = Number(value);

@@ -14,7 +14,7 @@ cp .env.example .env
 
 Set `OPENAI_API_KEY` in `.env` or your shell. Never commit it. `tsx` loads `.env` through Node's native environment-file support; existing shell variables take precedence. Tests need no real credentials or internet access. CLI integration tests bind an ephemeral loopback port.
 
-`OPENAI_MODEL` defaults to `gpt-5.4-mini`, a small GPT-5 model listed in the installed SDK, chosen for a cost-conscious tool-calling default rather than the largest model. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default lives in `src/config.ts`, outside orchestration logic.
+`OPENAI_MODEL` defaults to `gpt-5.4-mini`, a small GPT-5 model listed in the installed SDK, chosen for a cost-conscious tool-calling default rather than the largest model. You can select another compatible model via the environment or `--model`; account access and model availability vary. The default lives in `src/cli/config.ts`, outside orchestration logic.
 
 ```bash
 npm run jft -- --fixture ./fixtures/sample-journal.json --question "What helped Nelson when he was anxious?"
@@ -81,3 +81,27 @@ boundaries, provider continuation, cancellation, and other non-obvious decisions
 
 No documentation generator is required. Editors display these comments inline;
 the architecture guide explains how the components fit together.
+
+## Project layout
+
+Source and tests are grouped by responsibility. Imports point directly to their
+owning modules; there are no barrel files or path aliases to follow.
+
+```text
+src/
+  cli/        main.ts, options.ts, config.ts — command entry and configuration
+  harness/    run.ts, context.ts, limits.ts, timeout.ts, tool-execution.ts, types.ts
+  journal/    entries.ts, validation.ts — fixture loading and validation
+  providers/  openai.ts — Responses API and continuation state
+  tools/      search-entries.ts — search schema, authorization, and execution
+  tracing/    trace.ts — ordered events, transcript recording, and persistence
+tests/
+  cli/        command-line checks and local HTTP integration
+  harness/    orchestration, limits, timeout, and type contracts
+  journal/    fixture validation and loading
+  providers/  OpenAI request/continuation mapping
+  tools/      search and call validation
+```
+
+`npm run jft` starts `src/cli/main.ts`. Run all tests with `npm test`, or a
+focused group with `npm test -- tests/harness`.

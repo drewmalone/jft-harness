@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import type { ResponseInputItem } from 'openai/resources/responses/responses';
-import { searchTool } from './tools/search-entries.js';
-import type { ModelAdapter, ModelRequest, Turn } from './types.js';
+import { searchTool } from '../tools/search-entries.js';
+import type { ModelAdapter, ModelRequest, Turn } from '../harness/types.js';
 
 /**
  * Maps one harness run to OpenAI Responses requests and continuation items.
