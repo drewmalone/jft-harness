@@ -393,3 +393,17 @@ it('refuses even a valid search request in full mode without executing it', asyn
   expect(result.saved.events.find(event => event.type === 'tool_result')).toMatchObject({ executed: false });
   expect(result.termination).toBe('completed');
 });
+
+
+it('preserves all model-requested calls in traces when dispatch stops at the budget', async () => {
+  const calls = Array.from({ length: 5 }, (_, index) => toolCall(`call-${index}`));
+  const result = await runScenario([toolResponse(...calls)], { limits: { toolCalls: 1 } });
+
+  const requestedCalls = result.saved.events.reduce((count, event) =>
+    count + (event.type === 'model_response' ? event.response.calls.length : 0), 0);
+  expect(requestedCalls).toBe(5);
+  expect(result.saved.events.filter(event => event.type === 'tool_request')).toHaveLength(2);
+  expect(result.saved.events.filter(event => event.type === 'tool_result' && event.executed))
+    .toHaveLength(1);
+  expect(result.termination).toBe('tool_limit');
+});

@@ -67,6 +67,7 @@ it('preserves exact continuation history without mutating earlier request snapsh
   const adapter = new OpenAIAdapter('test-model', 'test-key');
   const signal = new AbortController().signal;
   const first = await adapter.request({
+    contextMode: 'retrieval',
     instructions: 'first instructions',
     question: 'question',
     results: [],
@@ -75,6 +76,7 @@ it('preserves exact continuation history without mutating earlier request snapsh
   expect(first.usage).toEqual({ total_tokens: 10 });
 
   const second = await adapter.request({
+    contextMode: 'retrieval',
     instructions: 'updated instructions',
     question: 'question',
     results: [{ callId: 'call1', output: { entries: [] } }],

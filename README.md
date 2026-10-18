@@ -155,9 +155,11 @@ done
 These are live requests and require `OPENAI_API_KEY`. Each run prints its unique
 trace path. Compare `contextMode`, `fixture.hash`, `question`, `model`, and `limits`
 to establish comparable inputs. `durationMs`, `finalAnswer`, and `termination`
-record the outcome. Count `model_request` events for attempted model requests and
-`tool_request` events for requested calls (including rejected or over-budget
-calls); `tool_result.executed` distinguishes actual execution. Token usage is
+record the outcome. Count `model_request` events for attempted model requests. For model-requested
+tool calls, sum `model_response.response.calls.length` across responses, including
+calls left unprocessed when the budget is exhausted. `tool_request` events cover
+only calls reached by dispatch (including the first over-budget call);
+`tool_result.executed` distinguishes actual execution from validation rejection. Token usage is
 reported per `model_response.response.usage`: sum the provider's input/output/total
 counts across turns only where present. Missing usage is unknown, never zero;
 failed requests may have no reported usage. Do not double-count usage copied in

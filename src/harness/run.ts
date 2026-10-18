@@ -3,7 +3,7 @@ import type { LoadedFixture } from '../journal/entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
 import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from '../tracing/trace.js';
-import type { ContextMode, ModelAdapter, ToolCall, ToolResult, Turn } from '../providers/model.js';
+import type { ContextMode, ModelAdapter, ModelRequest, ToolCall, ToolResult, Turn } from '../providers/model.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 export { DEFAULT_LIMITS, type Limits } from './limits.js';
@@ -77,10 +77,13 @@ function validateModelResponse(response: Turn): void {
 /** Records one provider interaction and classifies provider/response failures. */
 async function requestModel(run: RunContext, number: number, results: ToolResult[]): Promise<Turn> {
   const { options, limits, trace } = run;
-  const input = {
-    instructions: run.instructions, question: options.question, results,
-    contextMode: run.contextMode,
-    ...(run.contextMode === 'full' ? { journal: options.fixture.entries } : {}),
+  const input: ModelRequest = {
+    instructions: run.instructions,
+    question: options.question,
+    results,
+    ...(run.contextMode === 'full'
+      ? { contextMode: 'full', journal: options.fixture.entries } as const
+      : { contextMode: 'retrieval' } as const),
   };
   recordEvent(trace, { type: 'model_request', number, input });
 

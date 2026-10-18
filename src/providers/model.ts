@@ -28,13 +28,13 @@ export type Turn = {
 
 /** Logical request input; results belong to the immediately preceding tool batch. */
 export type ModelRequest = {
-  /** Omitted mode preserves retrieval; journal is untrusted user-message data. */
-  contextMode?: ContextMode;
-  journal?: Entry[];
   instructions: string;
   question: string;
   results: ToolResult[];
-};
+} & (
+  | { contextMode: 'retrieval'; journal?: never }
+  | { contextMode: 'full'; journal: Entry[] }
+);
 
 /** Sequential model boundary. A fresh stateful instance is required for each run. */
 export interface ModelAdapter {
