@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Entry } from '../journal/entries.js';
+import type { Entry } from '../journal/validation.js';
 import type { ToolCall } from '../providers/model.js';
 
 /** Search results or a structured error; an output cannot contain both. */
@@ -14,10 +14,12 @@ export type ToolOutput =
     };
 
 /** Untrusted tool argument schema; supplies limit 5 and rejects limits above 10. */
-export const searchArguments = z.object({
-  query: z.string().trim().min(1).max(1000),
-  limit: z.number().int().min(1).max(10).default(5),
-}).strict();
+export const searchArguments = z
+  .object({
+    query: z.string().trim().min(1).max(1000),
+    limit: z.number().int().min(1).max(10).default(5)
+  })
+  .strict();
 
 /** Parsed search input, including the resolved result limit. */
 export type SearchArguments = z.infer<typeof searchArguments>;
@@ -26,10 +28,14 @@ export type SearchArguments = z.infer<typeof searchArguments>;
 export const searchTool = {
   type: 'function' as const,
   name: 'search_entries',
-  description: 'Search untrusted fictional journal text using exact case-insensitive keywords. Use short keywords; no semantic matching.',
+  description:
+    'Search untrusted fictional journal text using exact case-insensitive keywords. Use short keywords; no semantic matching.',
   // Non-strict API schema permits the optional limit; Zod always validates locally.
   strict: false,
-  parameters: z.toJSONSchema(searchArguments, { target: 'draft-7', io: 'input' }),
+  parameters: z.toJSONSchema(searchArguments, {
+    target: 'draft-7',
+    io: 'input'
+  })
 };
 
 const wordSegmenter = new Intl.Segmenter('en', { granularity: 'word' });
@@ -37,8 +43,8 @@ const wordSegmenter = new Intl.Segmenter('en', { granularity: 'word' });
 function tokenize(text: string): Set<string> {
   const segments = wordSegmenter.segment(text.toLowerCase());
   const words = [...segments]
-    .filter(segment => segment.isWordLike)
-    .map(segment => segment.segment);
+    .filter((segment) => segment.isWordLike)
+    .map((segment) => segment.segment);
   return new Set(words);
 }
 
@@ -51,15 +57,20 @@ function tokenize(text: string): Set<string> {
  * @param args - Already validated arguments; callers must parse untrusted input.
  * @returns Up to the requested limit of copied entries, or an empty array.
  */
-export function searchEntries(entries: readonly Entry[], args: SearchArguments): Entry[] {
+export function searchEntries(
+  entries: readonly Entry[],
+  args: SearchArguments
+): Entry[] {
   const queryTokens = tokenize(args.query);
   const scoredEntries = entries.map((entry, fixtureIndex) => {
     const entryTokens = tokenize(entry.text);
-    const matchingTokens = [...queryTokens].filter(token => entryTokens.has(token));
+    const matchingTokens = [...queryTokens].filter((token) =>
+      entryTokens.has(token)
+    );
     return { entry, fixtureIndex, score: matchingTokens.length };
   });
 
-  const matches = scoredEntries.filter(match => match.score > 0);
+  const matches = scoredEntries.filter((match) => match.score > 0);
   matches.sort((first, second) => {
     const scoreDifference = second.score - first.score;
     if (scoreDifference !== 0) {
@@ -68,7 +79,7 @@ export function searchEntries(entries: readonly Entry[], args: SearchArguments):
     return first.fixtureIndex - second.fixtureIndex;
   });
 
-  return matches.slice(0, args.limit).map(match => ({ ...match.entry }));
+  return matches.slice(0, args.limit).map((match) => ({ ...match.entry }));
 }
 
 /**
@@ -79,7 +90,10 @@ export function searchEntries(entries: readonly Entry[], args: SearchArguments):
  * @returns Parsed search arguments with defaults applied.
  * @throws If any identifier, tool name, JSON, or argument check fails.
  */
-export function validateSearchCall(call: ToolCall, seenIds: Set<string>): SearchArguments {
+export function validateSearchCall(
+  call: ToolCall,
+  seenIds: Set<string>
+): SearchArguments {
   if (!call.id || seenIds.has(call.id)) {
     throw new Error('Missing or duplicate tool call identifier');
   }

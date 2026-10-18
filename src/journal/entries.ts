@@ -2,8 +2,6 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { fixtureSchema, type Entry } from './validation.js';
 
-export { entrySchema, fixtureSchema, type Entry } from './validation.js';
-
 /** Validated journal data plus the source path and original-content hash. */
 export type LoadedFixture = {
   path: string;

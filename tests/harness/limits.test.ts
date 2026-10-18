@@ -10,9 +10,11 @@ it('rejects invalid programmatic limits independently of the CLI', () => {
 
 it.each(['modelTimeoutMs', 'toolTimeoutMs', 'runTimeoutMs'] as const)(
   'bounds %s to the Node timer range',
-  key => {
-    expect(validateLimits({ [key]: MAX_TIMER_DELAY_MS })[key]).toBe(MAX_TIMER_DELAY_MS);
+  (key) => {
+    expect(validateLimits({ [key]: MAX_TIMER_DELAY_MS })[key]).toBe(
+      MAX_TIMER_DELAY_MS
+    );
     expect(() => validateLimits({ [key]: MAX_TIMER_DELAY_MS + 1 })).toThrow();
     expect(() => validateLimits({ [key]: Number.MAX_SAFE_INTEGER })).toThrow();
-  },
+  }
 );

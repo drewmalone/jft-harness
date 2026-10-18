@@ -2,14 +2,20 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 import type { ContextMode } from '../providers/model.js';
 import { DEFAULT_MODEL } from './config.js';
 import type { ZodNumber } from 'zod';
-import { countBudgetSchema, DEFAULT_LIMITS, timeoutBudgetSchema } from '../harness/limits.js';
+import {
+  countBudgetSchema,
+  DEFAULT_LIMITS,
+  timeoutBudgetSchema
+} from '../harness/limits.js';
 
 /** Adapts a shared numeric schema to Commander's string parser and error format. */
 function budgetArgument(schema: ZodNumber) {
   return (value: string): number => {
     const result = schema.safeParse(Number(value));
     if (!result.success) {
-      throw new InvalidArgumentError(result.error.issues[0]?.message ?? 'Invalid execution budget');
+      throw new InvalidArgumentError(
+        result.error.issues[0]?.message ?? 'Invalid execution budget'
+      );
     }
     return result.data;
   };
@@ -29,16 +35,51 @@ export function parseCliOptions() {
     .description('JFT v0.2 — fictional recovery journal questions')
     .requiredOption('--fixture <path>', 'JSON journal fixture')
     .requiredOption('--question <text>', 'Question to answer')
-    .addOption(new Option('--context-mode <mode>', 'Journal context strategy').choices(['retrieval', 'full']).default('retrieval'))
-    .option('--model <model>', `Override OPENAI_MODEL (default: ${DEFAULT_MODEL})`)
+    .addOption(
+      new Option('--context-mode <mode>', 'Journal context strategy')
+        .choices(['retrieval', 'full'])
+        .default('retrieval')
+    )
+    .option(
+      '--model <model>',
+      `Override OPENAI_MODEL (default: ${DEFAULT_MODEL})`
+    )
     .option('--trace-dir <directory>', 'Trace output directory', 'traces')
-    .option('--max-model-requests <number>', 'Model request budget', countArgument, DEFAULT_LIMITS.modelRequests)
-    .option('--max-tool-calls <number>', 'Tool call budget, including rejected calls', countArgument, DEFAULT_LIMITS.toolCalls)
-    .option('--model-timeout-ms <number>', 'Per-request timeout', timeoutArgument, DEFAULT_LIMITS.modelTimeoutMs)
-    .option('--tool-timeout-ms <number>', 'Per-tool timeout', timeoutArgument, DEFAULT_LIMITS.toolTimeoutMs)
-    .option('--run-timeout-ms <number>', 'Overall deadline', timeoutArgument, DEFAULT_LIMITS.runTimeoutMs)
+    .option(
+      '--max-model-requests <number>',
+      'Model request budget',
+      countArgument,
+      DEFAULT_LIMITS.modelRequests
+    )
+    .option(
+      '--max-tool-calls <number>',
+      'Tool call budget, including rejected calls',
+      countArgument,
+      DEFAULT_LIMITS.toolCalls
+    )
+    .option(
+      '--model-timeout-ms <number>',
+      'Per-request timeout',
+      timeoutArgument,
+      DEFAULT_LIMITS.modelTimeoutMs
+    )
+    .option(
+      '--tool-timeout-ms <number>',
+      'Per-tool timeout',
+      timeoutArgument,
+      DEFAULT_LIMITS.toolTimeoutMs
+    )
+    .option(
+      '--run-timeout-ms <number>',
+      'Overall deadline',
+      timeoutArgument,
+      DEFAULT_LIMITS.runTimeoutMs
+    )
     .showHelpAfterError()
-    .addHelpText('after', '\nExample: npm run jft -- --fixture fixtures/sample-journal.json --question "What helped Nelson?"\nEnvironment: OPENAI_API_KEY (required), OPENAI_MODEL (optional)');
+    .addHelpText(
+      'after',
+      '\nExample: npm run jft -- --fixture fixtures/sample-journal.json --question "What helped Nelson?"\nEnvironment: OPENAI_API_KEY (required), OPENAI_MODEL (optional)'
+    );
 
   command.parse();
   return command.opts<{

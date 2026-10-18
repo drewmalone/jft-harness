@@ -2,11 +2,22 @@ import { buildContext, PROMPT_VERSION } from './context.js';
 import type { LoadedFixture } from '../journal/entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
-import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from '../tracing/trace.js';
-import type { ContextMode, ModelAdapter, ModelRequest, ToolCall, ToolResult, Turn } from '../providers/model.js';
+import {
+  createTrace,
+  recordEvent,
+  recordModelResponse,
+  saveTrace,
+  type Trace
+} from '../tracing/trace.js';
+import type {
+  ContextMode,
+  ModelAdapter,
+  ModelRequest,
+  ToolCall,
+  ToolResult,
+  Turn
+} from '../providers/model.js';
 import { DeadlineError, withTimeout } from './timeout.js';
-
-export { DEFAULT_LIMITS, type Limits } from './limits.js';
 
 /** Why the run stopped; only completed represents a successful answer. */
 export type Termination =
@@ -75,23 +86,27 @@ function validateModelResponse(response: Turn): void {
 }
 
 /** Records one provider interaction and classifies provider/response failures. */
-async function requestModel(run: RunContext, number: number, results: ToolResult[]): Promise<Turn> {
+async function requestModel(
+  run: RunContext,
+  number: number,
+  results: ToolResult[]
+): Promise<Turn> {
   const { options, limits, trace } = run;
   const input: ModelRequest = {
     instructions: run.instructions,
     question: options.question,
     results,
     ...(run.contextMode === 'full'
-      ? { contextMode: 'full', journal: options.fixture.entries } as const
-      : { contextMode: 'retrieval' } as const),
+      ? ({ contextMode: 'full', journal: options.fixture.entries } as const)
+      : ({ contextMode: 'retrieval' } as const))
   };
   recordEvent(trace, { type: 'model_request', number, input });
 
   try {
     const response = await withTimeout(
-      signal => options.adapter.request(input, signal),
+      (signal) => options.adapter.request(input, signal),
       Math.min(limits.modelTimeoutMs, run.remainingTime()),
-      options.signal,
+      options.signal
     );
     recordModelResponse(trace, number, response);
     validateModelResponse(response);
@@ -131,10 +146,10 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
         entries: run.options.fixture.entries,
         searchEnabled: run.contextMode !== 'full',
         search: run.options.search,
-        signal: run.options.signal,
+        signal: run.options.signal
       },
       run.trace,
-      Math.min(run.limits.toolTimeoutMs, run.remainingTime()),
+      Math.min(run.limits.toolTimeoutMs, run.remainingTime())
     );
     results.push(result);
   }
@@ -174,13 +189,17 @@ function failedOutcome(error: unknown): RunOutcome {
 }
 
 /** Finalizes trace metadata; persistence failure converts even an answer to failure. */
-async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number) {
+async function finishRun(
+  run: RunContext,
+  outcome: RunOutcome,
+  startedAt: number
+) {
   const { trace, options } = run;
   if (outcome.termination !== 'completed') {
     recordEvent(trace, {
       type: 'error',
       category: outcome.termination,
-      message: outcome.error,
+      message: outcome.error
     });
   }
   trace.termination = outcome.termination;
@@ -194,14 +213,15 @@ async function finishRun(run: RunContext, outcome: RunOutcome, startedAt: number
   } catch {
     outcome = {
       termination: 'internal_error',
-      error: 'Could not save trace; check trace directory permissions and disk space',
+      error:
+        'Could not save trace; check trace directory permissions and disk space'
     };
     trace.termination = outcome.termination;
     delete trace.finalAnswer;
     recordEvent(trace, {
       type: 'error',
       category: 'trace_write',
-      message: outcome.error,
+      message: outcome.error
     });
     trace.endedAt = new Date().toISOString();
     trace.durationMs = Date.now() - startedAt;
@@ -237,7 +257,7 @@ export async function runHarness(options: HarnessOptions) {
     fixture: options.fixture,
     question: options.question,
     context: instructions,
-    limits,
+    limits
   });
   const startedAt = Date.now();
   const run: RunContext = {
@@ -247,7 +267,7 @@ export async function runHarness(options: HarnessOptions) {
     instructions,
     trace,
     remainingTime: () => limits.runTimeoutMs - (Date.now() - startedAt),
-    toolCallsUsed: 0,
+    toolCallsUsed: 0
   };
 
   let outcome: RunOutcome;

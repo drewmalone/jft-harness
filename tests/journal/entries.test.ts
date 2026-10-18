@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { fixtureSchema, loadFixture } from '../../src/journal/entries.js';
+import { loadFixture } from '../../src/journal/entries.js';
+import { fixtureSchema } from '../../src/journal/validation.js';
 
 const entry = {
   id: 'entry-001',
   date: '2026-09-01',
-  text: 'Fictional text',
+  text: 'Fictional text'
 };
 
 const malformedFixtures = [
@@ -18,7 +19,7 @@ const malformedFixtures = [
   [{ ...entry, date: '2026-0a-01' }],
   [{ ...entry, id: '../bad' }],
   [{ ...entry, id: '-bad' }],
-  [{ ...entry, id: '' }],
+  [{ ...entry, id: '' }]
 ];
 
 describe('fixtures', () => {
@@ -26,12 +27,13 @@ describe('fixtures', () => {
     const fixture = await loadFixture('fixtures/sample-journal.json');
     expect(fixture.entries).toHaveLength(18);
     expect(fixture.hash).toHaveLength(64);
-    const hasOnlyHexDigits = [...fixture.hash].every(character =>
-      '0123456789abcdef'.includes(character));
+    const hasOnlyHexDigits = [...fixture.hash].every((character) =>
+      '0123456789abcdef'.includes(character)
+    );
     expect(hasOnlyHexDigits).toBe(true);
   });
 
-  it.each(malformedFixtures)('rejects malformed fixture %j', value => {
+  it.each(malformedFixtures)('rejects malformed fixture %j', (value) => {
     expect(fixtureSchema.safeParse(value).success).toBe(false);
   });
 
@@ -45,13 +47,13 @@ describe('fixtures', () => {
   });
 });
 
-it.each(['entry-001', 'entry_002', 'ABC123'])('accepts stable ID %s', id => {
+it.each(['entry-001', 'entry_002', 'ABC123'])('accepts stable ID %s', (id) => {
   expect(fixtureSchema.safeParse([{ ...entry, id }]).success).toBe(true);
 });
 
 it.each(['_leading', 'has space', 'has/slash', 'éclair', 'has.dot'])(
   'rejects unsupported ID %s',
-  id => {
+  (id) => {
     expect(fixtureSchema.safeParse([{ ...entry, id }]).success).toBe(false);
-  },
+  }
 );
