@@ -1,4 +1,8 @@
+import type { Entry } from '../journal/entries.js';
 import type { ToolOutput } from '../tools/search-entries.js';
+
+/** How journal evidence reaches the model. */
+export type ContextMode = 'retrieval' | 'full';
 
 /** A model-requested function call. Name and raw JSON arguments are untrusted. */
 export type ToolCall = {
@@ -27,7 +31,10 @@ export type ModelRequest = {
   instructions: string;
   question: string;
   results: ToolResult[];
-};
+} & (
+  | { contextMode: 'retrieval'; journal?: never }
+  | { contextMode: 'full'; journal: Entry[] }
+);
 
 /** Sequential model boundary. A fresh stateful instance is required for each run. */
 export interface ModelAdapter {

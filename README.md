@@ -1,4 +1,4 @@
-# JFT Harness v0.1
+# JFT Harness v0.2
 
 Just for Today is a small, transparent TypeScript harness for asking questions about **fictional** recovery journals. It implements the Responses API tool loop directly, without an agent framework. There is no frontend, server, database, authentication, or audio processing.
 
@@ -67,7 +67,7 @@ GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` on pull reques
 
 This is a learning prototype, not clinical advice or a replacement for human recovery support. See [the architecture](docs/ARCHITECTURE.md) for the loop and design tradeoffs.
 
-Next three small milestones: compare full-context and tool-retrieval runs; evaluate evidence and citation correctness; add a simple trace viewer or replay tool. Those experiments are deliberately outside v0.1.
+Next milestones: evaluate evidence and citation correctness; add a simple trace viewer or replay tool.
 
 ## Code documentation
 
@@ -123,3 +123,65 @@ Use **Squash and merge**, with the validated PR title as the final commit title.
 Review commits in a multi-commit PR do not need to be rewritten. The workflow
 checks naming; required status checks and permitted merge methods are configured
 separately in GitHub repository settings.
+
+
+## Comparing context strategies
+
+`--context-mode retrieval` is the default and preserves the search loop. The model
+initially sees date metadata and the question, then selects exact-word searches.
+`--context-mode full` supplies every entry (including IDs and dates) as JSON in a
+separate user-role message before the question. Citation, contradiction, and
+missing-evidence rules remain in trusted instructions. Journal strings are always
+untrusted evidence; no search tool is advertised or executable in full mode.
+Unexpected tool calls receive validation errors and consume the existing budgets.
+Both modes share the adapter, orchestration loop, model settings, deadlines,
+cancellation, and trace persistence.
+
+Run the same fixture and question with an explicit model and identical limits:
+
+```bash
+for mode in retrieval full; do
+  npm run jft -- \
+    --fixture ./fixtures/sample-journal.json \
+    --question "What helped Nelson when he was anxious?" \
+    --model gpt-5.4-mini \
+    --context-mode "$mode" \
+    --max-model-requests 5 --max-tool-calls 6 \
+    --model-timeout-ms 30000 --tool-timeout-ms 5000 --run-timeout-ms 120000 \
+    --trace-dir "traces/$mode"
+done
+```
+
+These are live requests and require `OPENAI_API_KEY`. Each run prints its unique
+trace path. Compare `contextMode`, `fixture.hash`, `question`, `model`, and `limits`
+to establish comparable inputs. `durationMs`, `finalAnswer`, and `termination`
+record the outcome. Count `model_request` events for attempted model requests. For model-requested
+tool calls, sum `model_response.response.calls.length` across responses, including
+calls left unprocessed when the budget is exhausted. `tool_request` events cover
+only calls reached by dispatch (including the first over-budget call);
+`tool_result.executed` distinguishes actual execution from validation rejection. Token usage is
+reported per `model_response.response.usage`: sum the provider's input/output/total
+counts across turns only where present. Missing usage is unknown, never zero;
+failed requests may have no reported usage. Do not double-count usage copied in
+raw responses. Existing schema-version-1 fields remain; `contextMode` is additive,
+and older traces without it predate strategy selection (retrieval only).
+
+Compare citation accuracy, contrary evidence, and admissions of missing evidence
+as well as tokens and latency. Repeat runs: model output and latency vary, and a
+single pair is not an evaluation. Full context avoids search round trips and weak
+keyword recall, but sends all entries up front and can distract the model with
+irrelevant or malicious text. Retrieval may use fewer input tokens for a large
+journal but can take more model turns and miss synonyms or contradictory entries.
+Without tools, the model must answer from the supplied journal or acknowledge gaps;
+it cannot retrieve more evidence during that run.
+
+There is no universal entry-count threshold for full context. Journal text,
+instructions, question, reasoning/output allowance, and any continuation history
+must fit the selected model's context window. Token cost and latency may become
+impractical earlier; measure with representative journals and provider usage.
+This version does not estimate tokens, truncate entries, or automatically switch
+strategies. Oversized requests fail through the existing provider-error path.
+Both traces contain the complete fictional fixture; full mode additionally sends
+it all to the provider. Automated tests verify message placement, IDs/dates, tool
+authorization, traces, and the real CLI/SDK protocol against a local fake endpoint.
+They do not prove live-model injection resistance, grounding, quality, or cost.

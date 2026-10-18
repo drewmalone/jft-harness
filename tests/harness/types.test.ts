@@ -1,4 +1,5 @@
 import { it, expectTypeOf } from 'vitest';
+import type { ModelRequest } from '../../src/providers/model.js';
 import type { Entry } from '../../src/journal/entries.js';
 import type { RunOutcome } from '../../src/harness/run.js';
 import type { ToolOutput } from '../../src/tools/search-entries.js';
@@ -26,4 +27,20 @@ it('prevents tool outputs from containing both entries and an error', () => {
     error: { code: 'tool_error'; message: string };
   }>().not.toMatchTypeOf<ToolOutput>();
   expectTypeOf<{}>().not.toMatchTypeOf<ToolOutput>();
+});
+
+it('requires journal data only for full-context requests and an explicit mode', () => {
+  type Base = {
+    instructions: string;
+    question: string;
+    results: [];
+  };
+
+  expectTypeOf<Base>().not.toMatchTypeOf<ModelRequest>();
+  expectTypeOf<Base & { contextMode: 'full' }>().not.toMatchTypeOf<ModelRequest>();
+  expectTypeOf<Base & { contextMode: 'retrieval'; journal: Entry[] }>()
+    .not.toMatchTypeOf<ModelRequest>();
+  expectTypeOf<Base & { contextMode: 'full'; journal: Entry[] }>()
+    .toMatchTypeOf<ModelRequest>();
+  expectTypeOf<Base & { contextMode: 'retrieval' }>().toMatchTypeOf<ModelRequest>();
 });

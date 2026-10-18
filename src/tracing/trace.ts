@@ -5,7 +5,7 @@ import type { LoadedFixture } from '../journal/entries.js';
 import type { Limits } from '../harness/limits.js';
 import type { Termination } from '../harness/run.js';
 import type { ToolOutput } from '../tools/search-entries.js';
-import type { ModelRequest, ToolCall, ToolResult, Turn } from '../providers/model.js';
+import type { ContextMode, ModelRequest, ToolCall, ToolResult, Turn } from '../providers/model.js';
 
 /** Logical conversation view for inspection; does not replace provider history. */
 export type TranscriptItem =
@@ -45,6 +45,7 @@ export type TraceEvent = TraceEventData & {
  * retention or redaction policy suitable for real journals.
  */
 export type Trace = {
+  contextMode: ContextMode;
   schemaVersion: '1';
   runId: string;
   startedAt: string;

@@ -21,6 +21,7 @@ async function main() {
     const result = await runHarness({
       adapter: new OpenAIAdapter(config.model, config.apiKey),
       question: options.question,
+      contextMode: options.contextMode,
       fixture,
       limits: {
         modelRequests: options.maxModelRequests,
