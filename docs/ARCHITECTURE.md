@@ -9,15 +9,19 @@ decision without a large abstraction layer. Tests mirror the source groups.
 - **`src/harness/`**: `run.ts` owns the explicit model/tool loop and execution budgets.
   `context.ts` builds versioned instructions, `limits.ts` owns the shared budget schemas used by both the CLI and programmatic runs,
   `timeout.ts` bounds waits, and `tool-execution.ts` validates and executes calls.
-  `types.ts` holds the logical model, tool, outcome, and trace-event contracts.
+  Run termination and outcome types live beside the loop in `run.ts`.
 - **`src/journal/`**: `validation.ts` owns fixture schemas, ISO dates, and unique IDs.
-  `entries.ts` reads and hashes the fixture file.
-- **`src/providers/`**: `openai.ts` maps the official SDK's Responses items into
-  harness turns while preserving provider-specific continuation state.
+  `entries.ts` reads and hashes the fixture file and exports the shared
+  `LoadedFixture` type used by the harness and traces.
+- **`src/providers/`**: `model.ts` holds the normalized model request, response,
+  tool-call, and adapter contracts. `openai.ts` maps the official SDK's Responses
+  items into harness turns while preserving provider-specific continuation state.
 - **`src/tools/`**: `search-entries.ts` owns search arguments, the generated tool
-  declaration, call authorization, and deterministic keyword search.
+  declaration, call authorization, deterministic keyword search, and the typed
+  search success/error output.
 - **`src/tracing/`**: `trace.ts` creates and persists traces. Its recording functions
-  update events and the logical transcript together. Tracing observes execution.
+  update events and the logical transcript together. Trace events and transcript
+  types are defined here as well. Tracing observes execution.
 
 The model receives journal text only through untrusted tool results. Context
 contains the fixture date range, and relative dates use the latest journal date

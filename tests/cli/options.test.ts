@@ -1,7 +1,7 @@
-import { MAX_TIMER_DELAY_MS } from '../../src/harness/timeout.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { it, expect } from 'vitest';
+import { MAX_TIMER_DELAY_MS } from '../../src/harness/timeout.js';
 
 const exec = promisify(execFile);
 

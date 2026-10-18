@@ -2,7 +2,8 @@ import type { Entry } from '../journal/entries.js';
 import type { SearchArguments } from '../tools/search-entries.js';
 import { searchEntries, validateSearchCall } from '../tools/search-entries.js';
 import { recordEvent, recordToolResult, type Trace } from '../tracing/trace.js';
-import type { ToolCall, ToolOutput, ToolResult } from './types.js';
+import type { ToolCall, ToolResult } from '../providers/model.js';
+import type { ToolOutput } from '../tools/search-entries.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 /** Search implementation invoked only after call authorization and validation. */

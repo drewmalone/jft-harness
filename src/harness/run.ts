@@ -1,12 +1,29 @@
 import { buildContext, PROMPT_VERSION } from './context.js';
-import type { Entry } from '../journal/entries.js';
+import type { LoadedFixture } from '../journal/entries.js';
 import { validateLimits, type Limits } from './limits.js';
 import { executeToolCall, type SearchExecutor } from './tool-execution.js';
 import { createTrace, recordEvent, recordModelResponse, saveTrace, type Trace } from '../tracing/trace.js';
-import type { FailureReason, ModelAdapter, RunOutcome, ToolCall, ToolResult, Turn } from './types.js';
+import type { ModelAdapter, ToolCall, ToolResult, Turn } from '../providers/model.js';
 import { DeadlineError, withTimeout } from './timeout.js';
 
 export { DEFAULT_LIMITS, type Limits } from './limits.js';
+
+/** Why the run stopped; only completed represents a successful answer. */
+export type Termination =
+  | 'completed'
+  | 'model_limit'
+  | 'tool_limit'
+  | 'timeout'
+  | 'provider_error'
+  | 'internal_error';
+
+/** Unsuccessful termination reasons, excluding completed. */
+export type FailureReason = Exclude<Termination, 'completed'>;
+
+/** A completed run always has an answer; every failed run has an error. */
+export type RunOutcome =
+  | { termination: 'completed'; answer: string; error?: never }
+  | { termination: FailureReason; error: string; answer?: never };
 
 /**
  * Inputs for a single question-answering run.
@@ -18,7 +35,7 @@ export { DEFAULT_LIMITS, type Limits } from './limits.js';
 export type HarnessOptions = {
   adapter: ModelAdapter;
   question: string;
-  fixture: { path: string; hash: string; entries: Entry[] };
+  fixture: LoadedFixture;
   limits?: Partial<Limits>;
   traceDirectory?: string;
   signal?: AbortSignal;

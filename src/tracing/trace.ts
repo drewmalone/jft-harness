@@ -1,9 +1,43 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Entry } from '../journal/entries.js';
+import type { LoadedFixture } from '../journal/entries.js';
 import type { Limits } from '../harness/limits.js';
-import type { TraceEvent, TraceEventData, TranscriptItem, Termination, ToolOutput, ToolResult, Turn } from '../harness/types.js';
+import type { Termination } from '../harness/run.js';
+import type { ToolOutput } from '../tools/search-entries.js';
+import type { ModelRequest, ToolCall, ToolResult, Turn } from '../providers/model.js';
+
+/** Logical conversation view for inspection; does not replace provider history. */
+export type TranscriptItem =
+  | { role: 'user'; text: string }
+  | { role: 'assistant'; text: string; calls: ToolCall[] }
+  | { role: 'tool'; callId: string; output: ToolOutput };
+
+/** Event payloads recorded at orchestration boundaries, before timestamping. */
+export type TraceEventData =
+  | { type: 'model_request'; number: number; input: ModelRequest }
+  | { type: 'model_response'; number: number; response: Turn }
+  | { type: 'tool_request'; call: ToolCall }
+  | {
+      type: 'tool_validation';
+      callId: string;
+      valid: boolean;
+      error?: string;
+      input?: unknown;
+    }
+  | {
+      type: 'tool_result';
+      callId: string;
+      output: ToolOutput;
+      durationMs: number;
+      executed: boolean;
+    }
+  | { type: 'error'; category: string; message: string };
+
+/** Ordered event with an ISO observation timestamp. */
+export type TraceEvent = TraceEventData & {
+  at: string;
+};
 
 /**
  * Inspectable record of one attempted run, including full fictional journal data.
@@ -19,11 +53,7 @@ export type Trace = {
   provider: string;
   model: string;
   promptVersion: string;
-  fixture: {
-    path: string;
-    hash: string;
-    entries: Entry[];
-  };
+  fixture: LoadedFixture;
   question: string;
   context: string;
   limits: Limits;

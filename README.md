@@ -90,9 +90,9 @@ owning modules; there are no barrel files or path aliases to follow.
 ```text
 src/
   cli/        main.ts, options.ts, config.ts — command entry and configuration
-  harness/    run.ts, context.ts, limits.ts, timeout.ts, tool-execution.ts, types.ts
+  harness/    run.ts, context.ts, limits.ts, timeout.ts, tool-execution.ts
   journal/    entries.ts, validation.ts — fixture loading and validation
-  providers/  openai.ts — Responses API and continuation state
+  providers/  model.ts, openai.ts — model contracts and Responses continuation
   tools/      search-entries.ts — search schema, authorization, and execution
   tracing/    trace.ts — ordered events, transcript recording, and persistence
 tests/
