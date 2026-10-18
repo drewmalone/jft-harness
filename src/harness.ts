@@ -79,6 +79,12 @@ async function requestModel(run: RunContext, number: number, results: ToolResult
   }
 }
 
+function checkRunDeadline(run: RunContext): void {
+  if (run.remainingTime() <= 0 || run.options.signal?.aborted) {
+    throw new DeadlineError('Overall deadline reached or run cancelled');
+  }
+}
+
 /** Processes one response's calls in order, stopping before an over-budget call. */
 async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
   const results: ToolResult[] = [];
@@ -86,6 +92,7 @@ async function executeToolBatch(run: RunContext, calls: ToolCall[]) {
 
   // Preserve response order. Rejected requests consume budget too.
   for (const call of calls) {
+    checkRunDeadline(run);
     recordEvent(run.trace, { type: 'tool_request', call });
     if (run.toolCallsUsed >= run.limits.toolCalls) {
       return { results, limitReached: true };
@@ -113,9 +120,7 @@ async function executeLoop(run: RunContext): Promise<RunOutcome> {
   let pendingResults: ToolResult[] = [];
 
   for (let number = 1; number <= run.limits.modelRequests; number++) {
-    if (run.remainingTime() <= 0 || run.options.signal?.aborted) {
-      throw new DeadlineError('Overall deadline reached or run cancelled');
-    }
+    checkRunDeadline(run);
 
     const response = await requestModel(run, number, pendingResults);
     if (response.calls.length === 0) {

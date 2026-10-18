@@ -20,6 +20,8 @@ export class DeadlineError extends Error {}
  *
  * The parent signal represents whole-run cancellation; the local timer applies
  * only to this operation. Either path uses the same DeadlineError outcome.
+ * Expired budgets reject before work starts. Checks around the operation also
+ * prevent late results from succeeding when a busy event loop delays the timer.
  * Finally removes the timer and parent listener even if the operation fails.
  *
  * @example
@@ -49,6 +51,11 @@ export async function withTimeout<T>(
     throw new RangeError(`timeoutMs must be finite and at most ${MAX_TIMER_DELAY_MS}`);
   }
 
+  if (timeoutMs <= 0 || parentSignal?.aborted) {
+    throw new DeadlineError('Execution timed out or was cancelled');
+  }
+
+  const deadlineAt = Date.now() + timeoutMs;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let cancel: (() => void) | undefined;
@@ -59,16 +66,25 @@ export async function withTimeout<T>(
       reject(new DeadlineError('Execution timed out or was cancelled'));
     };
     parentSignal?.addEventListener('abort', cancel, { once: true });
-    timer = setTimeout(cancel, Math.max(0, timeoutMs));
+    timer = setTimeout(cancel, timeoutMs);
     if (parentSignal?.aborted) {
       cancel();
     }
   });
 
-  // Deferring work lets an already-cancelled parent prevent it from starting.
-  const operation = Promise.resolve().then(() => {
-    controller.signal.throwIfAborted();
-    return work(controller.signal);
+  function checkDeadline(): void {
+    if (controller.signal.aborted || Date.now() >= deadlineAt) {
+      controller.abort();
+      throw new DeadlineError('Execution timed out or was cancelled');
+    }
+  }
+
+  // Check again after deferral and after work: a busy event loop can delay timers.
+  const operation = Promise.resolve().then(async () => {
+    checkDeadline();
+    const result = await work(controller.signal);
+    checkDeadline();
+    return result;
   });
 
   try {

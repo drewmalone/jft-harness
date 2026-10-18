@@ -1,4 +1,4 @@
-import { afterEach, it, expect } from 'vitest';
+import { afterEach, it, expect, vi } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -251,3 +251,45 @@ it.each(['completed', 'provider_error'] as const)(
     expect(await readFile(blockedPath, 'utf8')).toBe('Existing file must be preserved');
   },
 );
+
+it('does not execute tools after a model response arrives past the deadline', async () => {
+  let clock = Date.now();
+  const now = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+  const search = vi.fn(async () => fixture.entries);
+  try {
+    const result = await run([async () => {
+      clock += 100;
+      return toolResponse(searchCall());
+    }], { limits: { runTimeoutMs: 100 }, search });
+
+    expect(result.termination).toBe('timeout');
+    expect(result.answer).toBeUndefined();
+    expect(search).not.toHaveBeenCalled();
+  } finally {
+    now.mockRestore();
+  }
+});
+
+it('stops a tool batch when its overall deadline expires', async () => {
+  let clock = Date.now();
+  const now = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+  const search = vi.fn(async () => {
+    clock += 100;
+    return fixture.entries;
+  });
+  try {
+    const result = await run([
+      toolResponse(searchCall('first'), searchCall('second')),
+      answer,
+    ], { limits: { runTimeoutMs: 100 }, search });
+
+    expect(result.termination).toBe('timeout');
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(result.adapter.requests).toHaveLength(1);
+    expect(result.trace.events).not.toContainEqual(
+      expect.objectContaining({ type: 'tool_request', call: expect.objectContaining({ id: 'second' }) }),
+    );
+  } finally {
+    now.mockRestore();
+  }
+});

@@ -4,7 +4,7 @@ Just for Today is a small, transparent TypeScript harness for asking questions a
 
 ## Getting started
 
-Use Node.js **24 LTS** (pinned in `.nvmrc`) and npm:
+Use Node.js **24 LTS** (pinned in `.nvmrc`, required by `package.json`, and matched by the Node 24 type definitions) and npm:
 
 ```bash
 nvm use
@@ -43,7 +43,7 @@ Defaults and CLI overrides:
 | `--tool-timeout-ms` | 5000 |
 | `--run-timeout-ms` | 120000 |
 
-Model and tool waits are capped by the remaining overall deadline. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Timeout settings must not exceed Node's maximum timer delay of 2,147,483,647 milliseconds; oversized values are rejected rather than overflowing into short waits. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
+Model and tool waits are capped by the remaining overall deadline. Expired budgets reject before work starts, and each tool call checks the run deadline. Late results are rejected even if a busy event loop delayed the timer callback. SIGINT/SIGTERM cancel the run. The adapter receives an abort signal. Timeout settings must not exceed Node's maximum timer delay of 2,147,483,647 milliseconds; oversized values are rejected rather than overflowing into short waits. Arbitrary JavaScript cannot be forcibly interrupted on the event loop; the built-in search is bounded local synchronous work, so very large fixtures are outside v0.1's intended use.
 
 Unsuccessful runs exit nonzero and never print a partial answer as success. Missing CLI configuration and malformed fixtures fail before harness execution. Once a harness run begins, success and failure both attempt trace persistence. A failed trace write is itself an unsuccessful run. The returned in-memory trace records a `trace_write` error and clears the final-answer field; no saved path is reported.
 
